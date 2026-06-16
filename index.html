@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Test Plan Architect</title>
+<style>
+:root{--bg:#0B0E14;--surface:#151A23;--surface2:#1D2430;--border:#2B3340;--text:#E4E9F0;--muted:#7A879E;--muted2:#4D5567;--neo4j:#00B8D4;--neo4j-dim:#08252C;--pine:#A05BE0;--pine-dim:#1C1030;--git:#42B954;--claude:#EB8B4D;--claude-dim:#2A1809;--ok:#22D3A5;--warn:#F5A623;--danger:#F26D6D;--ok-dim:#0A2820;--warn-dim:#2A1E08;--danger-dim:#2A0D0D;--r:10px;--r-sm:6px}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;min-height:100vh;line-height:1.55}
+.wrap{max-width:880px;margin:0 auto;padding:24px 20px 60px}
+.hdr{display:flex;align-items:center;gap:14px;margin-bottom:10px}
+.hdr-icon{width:42px;height:42px;border-radius:10px;background:linear-gradient(135deg,var(--neo4j),var(--pine));display:flex;align-items:center;justify-content:center;font-size:21px}
+.hdr-title{font-size:19px;font-weight:600}
+.hdr-sub{font-size:12px;color:var(--muted);margin-top:2px}
+.intro{font-size:12px;color:var(--muted);margin-bottom:20px;padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:var(--r-sm);line-height:1.6}
+.dots{display:flex;align-items:center;margin-bottom:22px}
+.dot{width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;border:1px solid var(--border);color:var(--muted);flex-shrink:0;transition:all .2s}
+.dot.act{background:var(--neo4j);color:#000;border-color:transparent}
+.dot.dn{background:var(--ok-dim);color:var(--ok);border-color:var(--ok)}
+.dline{flex:1;height:1px;background:var(--border);margin:0 6px}
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:22px;margin-bottom:16px}
+.sh1{font-size:16px;font-weight:600;margin-bottom:4px}
+.sh2{font-size:12px;color:var(--muted);margin-bottom:18px}
+.og{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:6px}
+.oc{border:1px solid var(--border);background:var(--surface2);border-radius:var(--r-sm);padding:12px 14px;cursor:pointer;transition:all .15s;user-select:none}
+.oc:hover{border-color:var(--muted2)}
+.oc.s{border-color:var(--neo4j);background:var(--neo4j-dim)}
+.ol{font-size:13px;font-weight:500;margin-bottom:2px}
+.os{font-size:11px;color:var(--muted)}
+.on{font-size:10px;color:var(--muted2);margin-top:5px;font-family:monospace}
+.note-after{font-size:11px;color:var(--claude);margin-top:10px;padding:8px 12px;background:var(--claude-dim);border-radius:var(--r-sm);line-height:1.5}
+.tg{display:flex;flex-wrap:wrap;gap:7px;margin:4px 0 6px}
+.tag{padding:7px 16px;border:1px solid var(--border);background:var(--surface2);border-radius:20px;font-size:12px;cursor:pointer;transition:all .15s;user-select:none}
+.tag.s{border-color:var(--neo4j);background:var(--neo4j-dim);font-weight:500;color:var(--neo4j)}
+.fld{margin-bottom:14px}
+.fll{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:5px;display:block}
+.fld input,.fld textarea{width:100%;padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text);font-family:monospace;font-size:12px;outline:none}
+.fld input:focus,.fld textarea:focus{border-color:var(--neo4j)}
+.fld textarea{font-family:inherit;resize:vertical;min-height:64px}
+.fld .hint{font-size:11px;color:var(--muted2);margin-top:4px}
+.optional-badge{font-size:9px;font-weight:600;color:var(--warn);background:var(--warn-dim);padding:2px 7px;border-radius:10px;margin-left:6px;text-transform:uppercase}
+.req-badge{font-size:9px;font-weight:600;color:var(--danger);background:var(--danger-dim);padding:2px 7px;border-radius:10px;margin-left:6px;text-transform:uppercase}
+.fallback{background:var(--claude-dim);border:1px solid var(--claude);border-radius:var(--r-sm);padding:12px 14px;font-size:12px;color:var(--claude);margin-bottom:16px;line-height:1.6}
+.nav{display:flex;justify-content:space-between;margin-top:8px}
+.btn{padding:11px 22px;border-radius:var(--r-sm);font-size:13px;font-weight:600;cursor:pointer;border:none;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn-back{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.btn-next{background:var(--neo4j);color:#000}
+.btn-run{background:linear-gradient(135deg,var(--neo4j),var(--pine));color:#fff;width:100%}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.sum-block{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px;margin-bottom:10px}
+.sum-label{font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.sum-dot{width:7px;height:7px;border-radius:50%}
+.sum-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border);font-size:12px;gap:10px}
+.sum-row:last-child{border-bottom:none}
+.sum-node{font-family:monospace;font-size:11px}
+.sum-status{font-size:10px;font-weight:600}
+.st-create{color:var(--ok)}.st-protect{color:var(--neo4j)}.st-infer{color:var(--claude)}
+#loading{display:none}
+.load-step{display:flex;align-items:center;gap:10px;padding:9px 0;font-size:13px;color:var(--muted)}
+.load-step.active{color:var(--text)}
+.load-step.done{color:var(--ok)}
+.spin{width:16px;height:16px;border:2px solid var(--border);border-top-color:var(--neo4j);border-radius:50%;animation:sp 1s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.load-dot{width:16px;height:16px;border-radius:50%;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:10px}
+#err{display:none;background:var(--danger-dim);border:1px solid var(--danger);border-radius:var(--r);padding:16px;margin-bottom:16px;font-size:13px;color:var(--danger);line-height:1.6}
+#results{display:none}
+.rcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);margin-bottom:16px}
+.rhead{padding:13px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:9px}
+.rhead h3{font-size:13px;font-weight:600}
+.rhead .dot2{width:8px;height:8px;border-radius:50%}
+.rbody{padding:18px}
+.gauge-row{display:grid;grid-template-columns:auto auto 1fr;gap:18px;align-items:center}
+.gauge{position:relative;width:90px;height:90px;text-align:center}
+.gauge svg{transform:rotate(-90deg)}
+.gauge-track{fill:none;stroke:var(--border);stroke-width:7}
+.gauge-fill{fill:none;stroke-width:7;stroke-linecap:round;transition:stroke-dashoffset 1s ease}
+.gauge-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+.gauge-pct{font-size:16px;font-weight:700;font-family:monospace}
+.gauge-lbl{font-size:9px;color:var(--muted);text-transform:uppercase}
+.src-pills{display:flex;gap:6px;flex-wrap:wrap}
+.src-pill{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;border:1px solid;font-size:11px;font-weight:500}
+.sp-neo4j{border-color:var(--neo4j);color:var(--neo4j);background:var(--neo4j-dim)}
+.sp-pine{border-color:var(--pine);color:var(--pine);background:var(--pine-dim)}
+.sp-claude{border-color:var(--claude);color:var(--claude);background:var(--claude-dim)}
+.gate2-banner{border-radius:var(--r);padding:16px;margin-bottom:16px;border:1px solid}
+.g2-warn{background:var(--danger-dim);border-color:var(--danger)}
+.g2-ok{background:var(--ok-dim);border-color:var(--ok)}
+.g2-title{font-size:14px;font-weight:600;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+.g2-check{font-size:12px;padding:6px 0;border-top:1px solid var(--border);line-height:1.5}
+.sec-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);margin:18px 0 10px}
+.sec-title:first-child{margin-top:0}
+.scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.scope-col{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px}
+.scope-col h4{font-size:12px;font-weight:600;margin-bottom:10px}
+.scope-item{font-size:12px;padding:5px 0;padding-left:18px;position:relative;line-height:1.5}
+.scope-in::before{content:"+";position:absolute;left:0;color:var(--ok);font-weight:700}
+.scope-out::before{content:"-";position:absolute;left:0;color:var(--muted2);font-weight:700}
+.blast-wrap{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:16px}
+.blast-center{display:inline-block;padding:6px 14px;background:var(--danger-dim);border:1px solid var(--danger);border-radius:var(--r-sm);font-size:13px;font-weight:600;color:var(--danger);margin-bottom:12px}
+.blast-hop{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px}
+.blast-arrow{color:var(--muted2);font-family:monospace;font-size:11px}
+.blast-mod{padding:4px 12px;border-radius:16px;font-size:11px;font-weight:500;border:1px solid}
+.bm-1{border-color:var(--danger);color:var(--danger);background:var(--danger-dim)}
+.bm-2{border-color:var(--warn);color:var(--warn);background:var(--warn-dim)}
+.bm-3{border-color:var(--muted);color:var(--muted)}
+.mod-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border)}
+.mod-row:last-child{border-bottom:none}
+.mod-name{font-size:12px;font-weight:500;min-width:130px}
+.mod-bar-bg{flex:1;height:4px;background:var(--border);border-radius:2px}
+.mod-bar{height:4px;border-radius:2px}
+.mod-score{font-size:11px;font-weight:600;font-family:monospace;min-width:30px;text-align:right}
+.mod-basis{font-size:10px;color:var(--muted);max-width:200px;text-align:right;line-height:1.3}
+.dnt-item{display:flex;gap:10px;padding:10px 12px;background:var(--danger-dim);border:1px solid rgba(242,109,109,.35);border-radius:var(--r-sm);margin-bottom:8px}
+.dnt-mod{font-size:12px;font-weight:600;color:var(--danger)}
+.dnt-reason{font-size:11px;margin-top:2px;line-height:1.5}
+.strat-row{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--border)}
+.strat-row:last-child{border-bottom:none}
+.strat-type{font-size:12px;font-weight:600;color:var(--neo4j);min-width:130px}
+.strat-desc{font-size:12px;flex:1;line-height:1.5}
+.tc-head,.tc-row{display:grid;grid-template-columns:52px 1fr 56px 52px 50px;gap:6px;padding:9px 10px;align-items:start}
+.tc-head{font-size:10px;font-weight:600;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--border)}
+.tc-row{border-bottom:1px solid var(--border)}
+.tc-row:last-child{border-bottom:none}
+.tc-id{font-family:monospace;font-size:10px;color:var(--muted);margin-top:2px}
+.tc-name{font-size:12px;font-weight:500}
+.tc-mod{font-size:10px;color:var(--muted);margin-top:2px}
+.badge{display:inline-flex;padding:2px 7px;border-radius:8px;font-size:10px;font-weight:600}
+.bh{background:var(--danger-dim);color:var(--danger)}.bm{background:var(--warn-dim);color:var(--warn)}.bl{background:var(--ok-dim);color:var(--ok)}
+.ba{background:var(--neo4j-dim);color:var(--neo4j)}.bman{background:var(--surface2);color:var(--muted);border:1px solid var(--border)}
+.steps-toggle{font-size:10px;color:var(--neo4j);cursor:pointer;margin-top:4px}
+.steps-list{display:none;margin-top:6px;font-size:11px;color:var(--muted);padding-left:14px;line-height:1.6}
+.exit-item{display:flex;gap:8px;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px}
+.exit-item:last-child{border-bottom:none}
+.dummy-box{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r-sm);padding:12px;font-family:monospace;font-size:12px;color:var(--muted);line-height:1.7}
+.dl-row{display:flex;gap:8px;flex-wrap:wrap}
+.dl-btn{display:flex;align-items:center;gap:5px;padding:9px 16px;border-radius:var(--r-sm);font-size:12px;font-weight:500;cursor:pointer;border:1px solid;background:transparent}
+.dl-pdf{border-color:var(--danger);color:var(--danger)}.dl-json{border-color:var(--git);color:var(--git)}
+.dl-html{border-color:var(--warn);color:var(--warn)}.dl-new{border-color:var(--muted);color:var(--muted)}
+@media print{body{background:#fff;color:#000}#wizard,#loading,.dl-row,.hdr-sub,.intro{display:none}.rcard{border:1px solid #ccc;break-inside:avoid}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="hdr"><div class="hdr-icon">🧪</div><div><div class="hdr-title">AI Test Plan Architect</div><div class="hdr-sub" id="hdr-sub">Tell us about your app → backend builds the graph → generates the plan</div></div></div>
+<div class="intro" id="intro">This form collects inputs only. On submit, it calls your <b>Cloudflare Worker backend</b> (which safely holds all keys). The Worker reads Neo4j + Pinecone, calls Claude, runs the <b>Gate 2 guardrail</b>, and returns the plan. No secret keys live in this page. Works with any public URL — test steps use safe fictional dummy data.</div>
+
+<div id="wizard">
+  <div class="dots" id="dots"></div>
+  <div class="card">
+    <div class="sh1" id="sh1"></div><div class="sh2" id="sh2"></div>
+    <div id="body"></div>
+    <div class="nav"><button class="btn btn-back" id="bp" onclick="go(-1)">← Back</button><button class="btn btn-next" id="bn" onclick="go(1)">Continue →</button></div>
+  </div>
+</div>
+
+<div id="loading"><div class="card">
+  <div class="sh1">Generating test plan…</div>
+  <div class="sh2">The Worker is doing the work. This usually takes 10–25 seconds.</div>
+  <div id="load-steps"></div>
+</div></div>
+
+<div id="err"></div>
+
+<div id="results"></div>
+</div>
+
+<script>
+/* ====== WORKER URL — paste yours after deploy (Step 4 also lets you set it) ====== */
+var WORKER_URL = localStorage.getItem('tpa_worker') || "https://accelq-testing-plan.boddedahimateja.workers.dev";
+
+var cur=0, atype=null, srcs=[], tests=[], flds={}, finalPlan=null;
+
+var STEPS=[
+  {h:"What type of application are you testing?",s:"This sets which crawlers and test types we configure. Pick the closest match."},
+  {h:"Which sources can you connect?",s:"Each source becomes graph nodes after you submit. Pick what you have — none is fine, Claude will infer."},
+  {h:"What kinds of testing do you need?",s:"The plan covers exactly the types you select here."},
+  {h:"Provide access (all optional)",s:"Give what you have. Anything blank → Claude infers and marks lower confidence."},
+  {h:"Review — here is what will be built",s:"Nodes are created on submit, not before. Existing graph data is protected."}
+];
+var ATYPES=[
+  {id:"web",l:"Web application",s:"Browser UI and functional flows"},
+  {id:"api",l:"REST API / GraphQL",s:"Endpoint and contract testing"},
+  {id:"mobile",l:"Mobile app",s:"iOS / Android screens"},
+  {id:"micro",l:"Microservices",s:"Service-to-service integration"},
+  {id:"ai",l:"AI agent / chatbot",s:"LLM, RAG, tool-calling (like Chef Krish)"},
+  {id:"all",l:"Hybrid — everything",s:"Web + API + backend combined"}
+];
+var SRCS=[
+  {id:"app_url",l:"App URL",s:"We crawl pages → UI map",n:"will create: UIPage, Form, Button"},
+  {id:"github",l:"GitHub repo",s:"Recent commits + changed files",n:"will create: Module, File"},
+  {id:"jira",l:"Jira project",s:"Stories and acceptance criteria",n:"will create: Feature, UserStory"},
+  {id:"swagger",l:"Swagger / OpenAPI",s:"Endpoints and schemas",n:"will create: API, Endpoint"},
+  {id:"db_schema",l:"DB schema (read-only)",s:"Tables and foreign keys",n:"will create: Table, Column"},
+  {id:"manual_modules",l:"Describe modules myself",s:"Type your module names",n:"will create: Module, BusinessRule"}
+];
+var TAGS=["UI / Functional","API testing","Regression","Sanity / smoke","End-to-end","Performance","Security","Integration"];
+
+function has(a,v){return a.indexOf(v)>-1}
+function tog(a,v){var i=a.indexOf(v);i>-1?a.splice(i,1):a.push(v)}
+function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}
+
+function renderDots(){var h='';STEPS.forEach(function(_,i){if(i>0)h+='<div class="dline"></div>';h+='<div class="dot'+(i<cur?' dn':i===cur?' act':'')+'">'+(i<cur?'✓':i+1)+'</div>';});document.getElementById('dots').innerHTML=h;}
+
+function render(){
+  var step=STEPS[cur];
+  document.getElementById('sh1').textContent=step.h;
+  document.getElementById('sh2').textContent=step.s;
+  document.getElementById('bp').style.display=cur>0?'':'none';
+  document.getElementById('bn').textContent=cur===STEPS.length-1?'⚡ Generate test plan':'Continue →';
+  document.getElementById('bn').className=cur===STEPS.length-1?'btn btn-run':'btn btn-next';
+  var h='';
+  if(cur===0){h='<div class="og">';ATYPES.forEach(function(o){h+='<div class="oc'+(atype===o.id?' s':'')+'" onclick="atype=\''+o.id+'\';render()"><div class="ol">'+o.l+'</div><div class="os">'+o.s+'</div></div>';});h+='</div>';}
+  else if(cur===1){h='<div class="og">';SRCS.forEach(function(o){h+='<div class="oc'+(has(srcs,o.id)?' s':'')+'" onclick="tog(srcs,\''+o.id+'\');render()"><div class="ol">'+o.l+'</div><div class="os">'+o.s+'</div><div class="on">'+o.n+'</div></div>';});h+='</div>';if(srcs.length===0)h+='<div class="note-after">No sources selected is OK. Claude infers the plan from your description — marked lower confidence.</div>';}
+  else if(cur===2){h='<div class="tg">';TAGS.forEach(function(t){h+='<div class="tag'+(has(tests,t)?' s':'')+'" data-tag="'+t.replace(/'/g,"\\'")+'">'+t+'</div>';});h+='</div>';}
+  else if(cur===3){
+    h+=fld('appname','App name','e.g. Chef Krish');
+    h+=fldArea('desc','What does the app do? (drives inference)','Describe main features, users, flows.');
+    h+=fld('change','Change / release being tested','e.g. Add coupon discount code (drives blast radius)','','Inter');
+    if(has(srcs,'app_url'))h+=fld('app_url','App URL (any public site works)','https://yourapp.com');
+    if(has(srcs,'github'))h+=fld('gh_url','GitHub repo (owner/repo)','himatejaboddeda-lab/Chef_Krish_Testing_V7','optional');
+    if(has(srcs,'jira')){h+=fld('jira_url','Jira base URL','https://company.atlassian.net','optional');h+=fld('jira_key','Jira project key','SCRUM','optional');}
+    if(has(srcs,'swagger'))h+=fld('sw_url','Swagger / OpenAPI URL','https://api.com/swagger.json','optional');
+    if(has(srcs,'db_schema'))h+=fld('db_url','DB connection (read-only)','postgresql://readonly:***@host/db','optional');
+    if(has(srcs,'manual_modules'))h+=fld('mods','Module names (comma-separated)','Chat UI, AI Router, Cart, Payment, Allergy Safety');
+    h+='<div class="fld" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)"><label class="fll">Cloudflare Worker URL<span class="req-badge">required</span></label><input id="f_worker" type="text" value="'+esc(WORKER_URL)+'" placeholder="https://test-plan-architect.YOURNAME.workers.dev" oninput="WORKER_URL=this.value;localStorage.setItem(\'tpa_worker\',this.value)"/><div class="hint">Paste the URL you get after deploying the Worker. The keys live there, never here.</div></div>';
+    if(srcs.length===0)h='<div class="fallback">No sources selected — inference mode. Claude generates from your description. Add sources in step 2 to raise confidence.</div>'+h;
+  }
+  else if(cur===4){h+=buildSummary();}
+  document.getElementById('body').innerHTML=h;
+  renderDots();
+}
+function fld(id,label,ph,opt,font){var b=opt?'<span class="optional-badge">'+opt+'</span>':'';var f=font==='Inter'?' style="font-family:inherit"':'';return '<div class="fld"><label class="fll">'+label+b+'</label><input id="f_'+id+'"'+f+' value="'+esc(flds[id])+'" placeholder="'+ph+'" oninput="flds[\''+id+'\']=this.value"/></div>';}
+function fldArea(id,label,ph){return '<div class="fld"><label class="fll">'+label+'</label><textarea id="f_'+id+'" placeholder="'+ph+'" oninput="flds[\''+id+'\']=this.value">'+esc(flds[id])+'</textarea></div>';}
+
+function buildSummary(){
+  var createNodes=[],pine=[];
+  if(has(srcs,'app_url'))createNodes.push('UIPage','Form','Button');
+  if(has(srcs,'github')){createNodes.push('Module','File');pine.push('Commit messages');}
+  if(has(srcs,'jira')){createNodes.push('Feature','UserStory');pine.push('Acceptance criteria');}
+  if(has(srcs,'swagger'))createNodes.push('API','Endpoint');
+  if(has(srcs,'db_schema'))createNodes.push('Table','Column');
+  if(has(srcs,'manual_modules'))createNodes.push('Module','BusinessRule');
+  pine.push('Past bug reports','Existing test cases');
+  var h='';
+  h+='<div class="sum-block"><div class="sum-label"><span class="sum-dot" style="background:var(--neo4j)"></span>Neo4j (MERGE — additive)</div>';
+  if(createNodes.length)createNodes.forEach(function(n){h+='<div class="sum-row"><span class="sum-node">'+n+'</span><span class="sum-status st-create">+ will MERGE</span></div>';});
+  else h+='<div class="sum-row"><span class="sum-node st-infer">Modules inferred by Claude</span><span class="sum-status st-infer">◆ inference</span></div>';
+  h+='</div>';
+  h+='<div class="sum-block"><div class="sum-label"><span class="sum-dot" style="background:var(--ok)"></span>Existing data — protected</div><div class="sum-row"><span class="sum-node">Chef Krish 217 dishes + 254 vectors</span><span class="sum-status st-protect">✓ untouched</span></div></div>';
+  h+='<div class="sum-block"><div class="sum-label"><span class="sum-dot" style="background:var(--claude)"></span>Plan will include</div>';
+  ['Scope (in / out)','Blast radius','Risk + do-not-touch zones','Test strategy','Test cases','Release gates','GATE 2 guardrail check','Exit criteria'].forEach(function(x){h+='<div class="sum-row"><span style="font-size:12px">'+x+'</span><span class="sum-status st-create">✓</span></div>';});
+  if(tests.length)h+='<div class="sum-row" style="border-top:1px solid var(--border);margin-top:4px;padding-top:8px"><span style="font-size:11px;color:var(--muted)">Types: '+tests.join(', ')+'</span></div>';
+  h+='</div>';
+  return h;
+}
+
+function go(d){
+  if(d===1&&cur===STEPS.length-1){generate();return;}
+  if(d===1&&cur<STEPS.length-1)cur++;
+  if(d===-1&&cur>0)cur--;
+  render();window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ====== loading steps ====== */
+var LSTEPS=["Validating permissions","Building Neo4j graph (MERGE)","Indexing Pinecone memory","Running impact analysis","Generating Claude test plan","Running Gate 2 guardrail"];
+function showLoad(active){
+  var h='';
+  LSTEPS.forEach(function(s,i){
+    var cls=i<active?'done':i===active?'active':'';
+    var icon=i<active?'<div class="load-dot" style="border-color:var(--ok);color:var(--ok)">✓</div>':i===active?'<div class="spin"></div>':'<div class="load-dot">'+(i+1)+'</div>';
+    h+='<div class="load-step '+cls+'">'+icon+'<span>'+s+'</span></div>';
+  });
+  document.getElementById('load-steps').innerHTML=h;
+}
+
+/* ====== call the Worker ====== */
+async function generate(){
+  if(!WORKER_URL||WORKER_URL.indexOf('YOUR_WORKER_URL')>-1){
+    alert('Paste your Cloudflare Worker URL in step 4 first.');cur=3;render();return;
+  }
+  document.getElementById('wizard').style.display='none';
+  document.getElementById('intro').style.display='none';
+  document.getElementById('err').style.display='none';
+  document.getElementById('results').style.display='none';
+  document.getElementById('loading').style.display='block';
+  document.getElementById('hdr-sub').textContent='Generating…';
+
+  var intake={
+    appName:flds.appname||'Untitled App',
+    appType:(ATYPES.find(function(a){return a.id===atype;})||{}).l||'web',
+    appUrl:flds.app_url||'',
+    description:flds.desc||'',
+    change:flds.change||'',
+    releaseName:flds.change||'Release',
+    sources:srcs,
+    testTypes:tests,
+    githubRepo:flds.gh_url||'',
+    jiraProjectKey:flds.jira_key||'',
+    manualModules:flds.mods||''
+  };
+
+  // animate loading steps
+  var li=0;showLoad(0);
+  var timer=setInterval(function(){if(li<LSTEPS.length-1){li++;showLoad(li);}},2500);
+
+  var ctrl=new AbortController();
+  var to=setTimeout(function(){ctrl.abort();},120000); // 2 min hard cap
+
+  try{
+    var res=await fetch(WORKER_URL.replace(/\/$/,'')+'/generate-test-plan',{
+      method:'POST',signal:ctrl.signal,
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(intake)
+    });
+    clearTimeout(to);clearInterval(timer);
+    if(!res.ok){
+      var et;try{et=await res.json();}catch(e){et={error:'HTTP '+res.status};}
+      throw new Error(et.error||('HTTP '+res.status));
+    }
+    var plan=await res.json();
+    if(plan.error)throw new Error(plan.error);
+    plan._meta={name:intake.appName,change:intake.change};
+    finalPlan=plan;
+    showLoad(LSTEPS.length);
+    setTimeout(function(){renderResults(plan);},300);
+  }catch(e){
+    clearTimeout(to);clearInterval(timer);
+    document.getElementById('loading').style.display='none';
+    var msg=e.name==='AbortError'?'The Worker took too long (over 2 minutes). Check the Worker logs with: wrangler tail':e.message;
+    document.getElementById('err').style.display='block';
+    document.getElementById('err').innerHTML='<b>Generation failed:</b> '+esc(msg)+'<br><br><b>Common fixes:</b><br>• Worker URL correct? Test it: open '+esc(WORKER_URL)+'/health in a new tab<br>• Did you set the secret? <code>wrangler secret put ANTHROPIC_API_KEY</code><br>• Is your Anthropic key funded?<br><br><button class="btn btn-back" onclick="backToForm()">← Back to fix</button>';
+  }
+}
+function backToForm(){document.getElementById('err').style.display='none';document.getElementById('wizard').style.display='block';document.getElementById('intro').style.display='block';document.getElementById('hdr-sub').textContent='Tell us about your app → backend builds the graph → generates the plan';cur=3;render();}
+
+/* ====== render the plan ====== */
+function renderResults(p){
+  document.getElementById('loading').style.display='none';
+  var R=document.getElementById('results');R.style.display='block';
+  document.getElementById('hdr-sub').textContent='Test plan generated';
+  var conf=p.confidence>1?p.confidence/100:(p.confidence||0.5);
+  var hall=p.hallucinationScore||0.1;
+  var C=226.2;
+  var g2=p.gate2||{triggered:false,riskAreasTouched:[],warning:'',requiredChecks:[]};
+
+  var h='';
+  // confidence + sources
+  h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--ok)"></div><h3>Test Plan — '+esc((p._meta&&p._meta.name)||'App')+'</h3></div><div class="rbody"><div class="gauge-row">';
+  h+='<div class="gauge"><svg width="90" height="90" viewBox="0 0 90 90"><circle class="gauge-track" cx="45" cy="45" r="36"></circle><circle class="gauge-fill" cx="45" cy="45" r="36" stroke-dasharray="226.2" stroke-dashoffset="'+(C*(1-conf))+'" stroke="'+(conf>=.85?'var(--ok)':conf>=.7?'var(--warn)':'var(--claude)')+'"></circle></svg><div class="gauge-txt"><div class="gauge-pct">'+Math.round(conf*100)+'%</div><div class="gauge-lbl">Confidence</div></div></div>';
+  h+='<div class="gauge"><svg width="90" height="90" viewBox="0 0 90 90"><circle class="gauge-track" cx="45" cy="45" r="36"></circle><circle class="gauge-fill" cx="45" cy="45" r="36" stroke-dasharray="226.2" stroke-dashoffset="'+(C*(1-hall))+'" stroke="var(--danger)"></circle></svg><div class="gauge-txt"><div class="gauge-pct" style="color:var(--danger)">'+Math.round(hall*100)+'%</div><div class="gauge-lbl">Hallucination</div></div></div>';
+  h+='<div><div class="src-pills">';
+  (p.sourcesUsed||[]).forEach(function(s){var cls=/neo4j/i.test(s)?'sp-neo4j':/pine/i.test(s)?'sp-pine':'sp-claude';h+='<div class="src-pill '+cls+'">'+esc(s)+'</div>';});
+  h+='</div><div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6">'+esc(p.summary||'')+'</div>';
+  h+='<div style="font-size:11px;color:var(--muted);margin-top:8px">Neo4j: '+(p.neo4jSummary?p.neo4jSummary.nodesCreatedOrMerged:0)+' nodes / '+(p.neo4jSummary?p.neo4jSummary.relationshipsCreatedOrMerged:0)+' rels merged · Pinecone: '+(p.pineconeSummary?p.pineconeSummary.matchesReturned:0)+' matches</div>';
+  if(p.neo4jSummary&&p.neo4jSummary.error){h+='<div style="font-size:11px;color:var(--danger);margin-top:6px;padding:8px 10px;background:var(--danger-dim);border-radius:6px;border:1px solid var(--danger)">⚠ Neo4j error: '+esc(p.neo4jSummary.error)+'<br><span style="color:var(--muted)">Fix: check NEO4J_QUERY_URL is the Cypher URL (not the GraphQL URL). It must end in /db/neo4j/query/v2 or /db/neo4j/tx/commit</span></div>';}
+  h+='</div></div></div></div>';
+
+  // GATE 2 banner (the thing you asked for — runs after Claude)
+  h+='<div class="gate2-banner '+(g2.triggered?'g2-warn':'g2-ok')+'"><div class="g2-title" style="color:'+(g2.triggered?'var(--danger)':'var(--ok)')+'">'+(g2.triggered?'⚠ Gate 2 — Guardrail triggered':'✓ Gate 2 — Guardrail clear')+'</div><div style="font-size:12px;line-height:1.6">'+esc(g2.warning)+'</div>';
+  if(g2.requiredChecks&&g2.requiredChecks.length){g2.requiredChecks.forEach(function(c){h+='<div class="g2-check">• '+esc(c)+'</div>';});}
+  h+='</div>';
+
+  // dummy test data
+  if(p.dummyTestData){h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--warn)"></div><h3>Dummy test identity (used in form/login steps)</h3></div><div class="rbody"><div class="dummy-box">name: '+esc(p.dummyTestData.name)+'<br>email: '+esc(p.dummyTestData.email)+'<br>phone: '+esc(p.dummyTestData.phone)+'</div></div></div>';}
+
+  // scope
+  if(p.scope){h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--text)"></div><h3>1 · Scope</h3></div><div class="rbody"><div class="scope-grid"><div class="scope-col"><h4 style="color:var(--ok)">In scope</h4>'+(p.scope.inScope||[]).map(function(x){return '<div class="scope-item scope-in">'+esc(x)+'</div>';}).join('')+'</div><div class="scope-col"><h4 style="color:var(--muted)">Out of scope</h4>'+(p.scope.outOfScope||[]).map(function(x){return '<div class="scope-item scope-out">'+esc(x)+'</div>';}).join('')+'</div></div></div></div>';}
+
+  // blast radius
+  if(p.blastRadius){var br=p.blastRadius;var byHop={1:[],2:[],3:[]};(br.impactChain||[]).forEach(function(c){var hp=c.hop||1;if(byHop[hp])byHop[hp].push(c);});var bh='<div class="blast-center">⦿ '+esc(br.centerModule||'change')+'</div>';[1,2,3].forEach(function(hop){if(byHop[hop].length){bh+='<div class="blast-hop"><span class="blast-arrow">'+'→'.repeat(hop)+'</span>';byHop[hop].forEach(function(c){bh+='<span class="blast-mod bm-'+hop+'">'+esc(c.module)+'</span>';});bh+='</div>';}});h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--neo4j)"></div><h3>2 · Blast radius — '+(br.totalImpacted||(br.impactChain||[]).length)+' modules</h3></div><div class="rbody"><div class="blast-wrap">'+bh+'</div></div></div>';}
+
+  // risk + do not touch
+  h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--danger)"></div><h3>3 · Risk &amp; do-not-touch</h3></div><div class="rbody"><div class="sec-title">Impacted modules</div>';
+  var mc={HIGH:'var(--danger)',MEDIUM:'var(--warn)',LOW:'var(--ok)'};
+  (p.impactAnalysis||[]).forEach(function(m){var rk=(m.riskScore>=8?'HIGH':m.riskScore>=5?'MEDIUM':'LOW');h+='<div class="mod-row"><div class="mod-name">'+esc(m.module)+'</div><div class="mod-bar-bg"><div class="mod-bar" style="width:'+((m.riskScore||5)*10)+'%;background:'+mc[rk]+'"></div></div><div class="mod-score" style="color:'+mc[rk]+'">'+(typeof m.riskScore==='number'?m.riskScore.toFixed(1):'—')+'</div><div class="mod-basis">'+esc(m.reason||'')+'</div></div>';});
+  if(p.doNotTouch&&p.doNotTouch.length){h+='<div class="sec-title" style="color:var(--danger)">⛔ Do NOT touch</div>';p.doNotTouch.forEach(function(d){h+='<div class="dnt-item"><span style="color:var(--danger)">⛔</span><div><div class="dnt-mod">'+esc(d.module)+'</div><div class="dnt-reason">'+esc(d.reason)+'</div></div></div>';});}
+  h+='</div></div>';
+
+  // strategy
+  if(p.testStrategy&&p.testStrategy.length){h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--text)"></div><h3>4 · Test strategy</h3></div><div class="rbody">';p.testStrategy.forEach(function(t){h+='<div class="strat-row"><div class="strat-type">'+esc(t.type)+'</div><div class="strat-desc">'+esc(t.approach)+'</div></div>';});h+='</div></div>';}
+
+  // test cases
+  h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--text)"></div><h3>5 · Test cases ('+(p.testCases||[]).length+')</h3></div><div style="padding:0 0 4px"><div class="tc-head"><span>ID</span><span>Scenario</span><span>Risk</span><span>Mode</span><span>Conf</span></div>';
+  var br2={HIGH:'bh',MEDIUM:'bm',LOW:'bl'};
+  (p.testCases||[]).forEach(function(tc,i){h+='<div class="tc-row"><div class="tc-id">'+esc(tc.id)+'</div><div><div class="tc-name">'+esc(tc.scenario)+'</div><div class="tc-mod">'+esc(tc.module||'')+(tc.sourceReason?' · '+esc(tc.sourceReason):'')+'</div><div class="steps-toggle" onclick="var s=document.getElementById(\'st'+i+'\');s.style.display=s.style.display===\'block\'?\'none\':\'block\'">▶ steps</div><ul class="steps-list" id="st'+i+'">'+(tc.steps||[]).map(function(x){return '<li>'+esc(x)+'</li>';}).join('')+(tc.expectedResult?'<li style="color:var(--ok)">Expected: '+esc(tc.expectedResult)+'</li>':'')+'</ul></div><div><span class="badge '+(br2[tc.risk]||'bm')+'">'+esc(tc.risk)+'</span></div><div><span class="badge '+(/auto/i.test(tc.mode)?'ba':'bman')+'">'+esc(tc.mode)+'</span></div><div style="font-family:monospace;font-size:11px;color:'+((tc.confidence||0)>=.85?'var(--ok)':'var(--warn)')+'">'+(tc.confidence?Math.round(tc.confidence*100)+'%':'—')+'</div></div>';});
+  h+='</div></div>';
+
+  // release gates
+  if(p.releaseGates&&p.releaseGates.length){h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--warn)"></div><h3>6 · Release gates</h3></div><div class="rbody">';p.releaseGates.forEach(function(g){h+='<div class="exit-item"><span style="color:var(--warn)">▸</span><span>'+esc(g)+'</span></div>';});h+='</div></div>';}
+
+  // exit criteria
+  if(p.exitCriteria&&p.exitCriteria.length){h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--ok)"></div><h3>7 · Exit criteria</h3></div><div class="rbody">';p.exitCriteria.forEach(function(c){h+='<div class="exit-item"><span style="color:var(--ok)">✓</span><span>'+esc(c)+'</span></div>';});h+='</div></div>';}
+
+  // downloads
+  h+='<div class="rcard"><div class="rbody"><div class="sec-title">Export</div><div class="dl-row"><button class="dl-btn dl-pdf" onclick="window.print()">🖨 Print / Save as PDF</button><button class="dl-btn dl-json" onclick="dlJSON()">{ } JSON</button><button class="dl-btn dl-html" onclick="dlHTML()">📄 HTML report</button><button class="dl-btn dl-new" onclick="resetAll()">+ New plan</button></div></div></div>';
+
+  R.innerHTML=h;
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function dlJSON(){if(!finalPlan)return;var b=new Blob([JSON.stringify(finalPlan,null,2)],{type:'application/json'});var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='test-plan.json';a.click();URL.revokeObjectURL(u);}
+function dlHTML(){if(!finalPlan)return;var html='<html><head><meta charset="utf-8"><title>Test Plan</title><style>body{font-family:Arial;margin:30px;color:#1a2230}h1{font-size:22px}h2{font-size:16px;margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:4px}table{border-collapse:collapse;width:100%;font-size:12px;margin-top:8px}td,th{border:1px solid #ccc;padding:6px;text-align:left}.warn{background:#fbeae8;border:1px solid #c0392b;padding:12px;border-radius:6px;margin:12px 0}</style></head><body>';html+='<h1>'+esc(finalPlan.title||'Test Plan')+'</h1><p>Confidence: '+Math.round((finalPlan.confidence>1?finalPlan.confidence/100:finalPlan.confidence)*100)+'% · '+esc(finalPlan.summary||'')+'</p>';var g2=finalPlan.gate2||{};html+='<div class="warn"><b>Gate 2:</b> '+esc(g2.warning||'')+'<br>'+(g2.requiredChecks||[]).map(function(c){return '• '+esc(c);}).join('<br>')+'</div>';html+='<h2>Test Cases</h2><table><tr><th>ID</th><th>Scenario</th><th>Risk</th><th>Mode</th><th>Module</th></tr>';(finalPlan.testCases||[]).forEach(function(t){html+='<tr><td>'+esc(t.id)+'</td><td>'+esc(t.scenario)+'</td><td>'+esc(t.risk)+'</td><td>'+esc(t.mode)+'</td><td>'+esc(t.module||'')+'</td></tr>';});html+='</table><h2>Release Gates</h2><ul>'+(finalPlan.releaseGates||[]).map(function(g){return '<li>'+esc(g)+'</li>';}).join('')+'</ul></body></html>';var b=new Blob([html],{type:'text/html'});var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='test-plan-report.html';a.click();URL.revokeObjectURL(u);}
+function resetAll(){cur=0;atype=null;srcs=[];tests=[];flds={};finalPlan=null;document.getElementById('results').style.display='none';document.getElementById('results').innerHTML='';document.getElementById('wizard').style.display='block';document.getElementById('intro').style.display='block';document.getElementById('hdr-sub').textContent='Tell us about your app → backend builds the graph → generates the plan';render();window.scrollTo({top:0,behavior:'smooth'});}
+
+document.addEventListener('click',function(e){var el=e.target.closest('.tag');if(el&&el.dataset.tag){tog(tests,el.dataset.tag);render();}});
+render();
+</script>
+</body>
+</html>
