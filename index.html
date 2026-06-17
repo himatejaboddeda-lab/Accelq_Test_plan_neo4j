@@ -191,6 +191,7 @@ var SRCS=[
   {id:"app_url",l:"App URL",s:"We crawl pages → UI map",n:"will create: UIPage, Form, Button"},
   {id:"github",l:"GitHub repo",s:"Recent commits + changed files",n:"will create: Module, File"},
   {id:"jira",l:"Jira project",s:"Stories and acceptance criteria",n:"will create: Feature, UserStory"},
+  {id:"neo4j",l:"Existing Neo4j graph",s:"Reads your live knowledge graph",n:"reads: Chef Krish 217 dishes, 183 rels"},
   {id:"swagger",l:"Swagger / OpenAPI",s:"Endpoints and schemas",n:"will create: API, Endpoint"},
   {id:"db_schema",l:"DB schema (read-only)",s:"Tables and foreign keys",n:"will create: Table, Column"},
   {id:"manual_modules",l:"Describe modules myself",s:"Type your module names",n:"will create: Module, BusinessRule"}
@@ -357,8 +358,25 @@ function renderResults(p){
   if(p.neo4jSummary&&p.neo4jSummary.error){h+='<div style="font-size:11px;color:var(--danger);margin-top:6px;padding:8px 10px;background:var(--danger-dim);border-radius:6px;border:1px solid var(--danger)">⚠ Neo4j error: '+esc(p.neo4jSummary.error)+'<br><span style="color:var(--muted)">Fix: check NEO4J_QUERY_URL is the Cypher URL (not the GraphQL URL). It must end in /db/neo4j/query/v2 or /db/neo4j/tx/commit</span></div>';}
   h+='</div></div></div></div>';
 
-  // GATE 2 banner (the thing you asked for — runs after Claude)
-  h+='<div class="gate2-banner '+(g2.triggered?'g2-warn':'g2-ok')+'"><div class="g2-title" style="color:'+(g2.triggered?'var(--danger)':'var(--ok)')+'">'+(g2.triggered?'⚠ Gate 2 — Guardrail triggered':'✓ Gate 2 — Guardrail clear')+'</div><div style="font-size:12px;line-height:1.6">'+esc(g2.warning)+'</div>';
+  // GATE 2 banner — shows risk areas AND access boundary issues
+  var g2IsPublic = g2.isPublicOnly;
+  var g2Color = g2IsPublic ? 'var(--warn)' : (g2.triggered ? 'var(--danger)' : 'var(--ok)');
+  var g2BgClass = g2IsPublic ? 'g2-warn' : (g2.triggered ? 'g2-warn' : 'g2-ok');
+  var g2Icon = g2IsPublic ? '🔒' : (g2.triggered ? '⚠' : '✓');
+  var g2Label = g2IsPublic ? 'Gate 2 — Access boundary triggered' : (g2.triggered ? 'Gate 2 — Guardrail triggered' : 'Gate 2 — Guardrail clear');
+  h+='<div class="gate2-banner '+g2BgClass+'">';
+  h+='<div class="g2-title" style="color:'+g2Color+'">'+g2Icon+' '+g2Label+'</div>';
+  // Access level badge
+  if(g2IsPublic){
+    h+='<div style="display:inline-block;padding:3px 10px;background:var(--warn-dim);border:1px solid var(--warn);border-radius:6px;font-size:10px;font-weight:700;color:var(--warn);margin-bottom:8px">🌐 PUBLIC URL ONLY — no backend access</div>';
+  } else {
+    h+='<div style="display:inline-block;padding:3px 10px;background:var(--ok-dim);border:1px solid var(--ok);border-radius:6px;font-size:10px;font-weight:700;color:var(--ok);margin-bottom:8px">🔑 FULL ACCESS — own app</div>';
+  }
+  h+='<div style="font-size:12px;line-height:1.6;margin-bottom:8px">'+esc(g2.warning)+'</div>';
+  // Blocked test cases
+  if(g2.backendCasesBlocked&&g2.backendCasesBlocked.length){
+    h+='<div style="font-size:11px;color:var(--warn);padding:8px 10px;background:var(--warn-dim);border-radius:6px;margin-bottom:8px">⛔ Cannot execute without API access: '+esc(g2.backendCasesBlocked.join(', '))+'</div>';
+  }
   if(g2.requiredChecks&&g2.requiredChecks.length){g2.requiredChecks.forEach(function(c){h+='<div class="g2-check">• '+esc(c)+'</div>';});}
   h+='</div>';
 
