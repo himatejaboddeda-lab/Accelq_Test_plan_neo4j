@@ -386,8 +386,87 @@ function renderResults(p){
   // scope
   if(p.scope){h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--text)"></div><h3>1 · Scope</h3></div><div class="rbody"><div class="scope-grid"><div class="scope-col"><h4 style="color:var(--ok)">In scope</h4>'+(p.scope.inScope||[]).map(function(x){return '<div class="scope-item scope-in">'+esc(x)+'</div>';}).join('')+'</div><div class="scope-col"><h4 style="color:var(--muted)">Out of scope</h4>'+(p.scope.outOfScope||[]).map(function(x){return '<div class="scope-item scope-out">'+esc(x)+'</div>';}).join('')+'</div></div></div></div>';}
 
-  // blast radius
-  if(p.blastRadius){var br=p.blastRadius;var byHop={1:[],2:[],3:[]};(br.impactChain||[]).forEach(function(c){var hp=c.hop||1;if(byHop[hp])byHop[hp].push(c);});var bh='<div class="blast-center">⦿ '+esc(br.centerModule||'change')+'</div>';[1,2,3].forEach(function(hop){if(byHop[hop].length){bh+='<div class="blast-hop"><span class="blast-arrow">'+'→'.repeat(hop)+'</span>';byHop[hop].forEach(function(c){bh+='<span class="blast-mod bm-'+hop+'">'+esc(c.module)+'</span>';});bh+='</div>';}});h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--neo4j)"></div><h3>2 · Blast radius — '+(br.totalImpacted||(br.impactChain||[]).length)+' modules</h3></div><div class="rbody"><div class="blast-wrap">'+bh+'</div></div></div>';}
+  // blast radius — layer-aware visual
+  if(p.blastRadius){
+    var br=p.blastRadius;
+    var chain=br.impactChain||[];
+    var byHop={1:[],2:[],3:[]};
+    chain.forEach(function(c){var hp=c.hop||1;if(byHop[hp])byHop[hp].push(c);});
+
+    // Layer colour map
+    var LAYER_COLOR={
+      'Frontend':'#4A9DFF','Backend':'#EB8B4D','Database':'#22D3A5',
+      'API':'#A05BE0','Worker':'#00B8D4','Cache':'#F5A623',
+      'Neo4j':'#00B8D4','Pinecone':'#A05BE0','Unknown':'#7A879E'
+    };
+    var LAYER_BG={
+      'Frontend':'#0D1F35','Backend':'#2A1809','Database':'#0A2820',
+      'API':'#1C1030','Worker':'#08252C','Cache':'#2A1E08',
+      'Neo4j':'#08252C','Pinecone':'#1C1030','Unknown':'#1D2430'
+    };
+
+    function layerBadge(layer){
+      var l=layer||'Unknown';
+      var col=LAYER_COLOR[l]||LAYER_COLOR.Unknown;
+      var bg=LAYER_BG[l]||LAYER_BG.Unknown;
+      return '<span style="font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;border:1px solid '+col+';color:'+col+';background:'+bg+';margin-left:5px">'+l+'</span>';
+    }
+
+    // Build center box
+    var bh='<div style="margin-bottom:14px">';
+    bh+='<div class="blast-center" style="margin-bottom:6px">⦿ '+esc(br.centerModule||'change')+'</div>';
+    if(br.changeType){bh+='<div style="font-size:11px;color:var(--muted);margin-left:4px">'+esc(br.changeType)+'</div>';}
+    bh+='</div>';
+
+    // Hop-by-hop rows
+    [1,2,3].forEach(function(hop){
+      if(!byHop[hop].length) return;
+      bh+='<div style="margin-bottom:10px">';
+      bh+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">'+'→'.repeat(hop)+' Hop '+hop+' — '+(hop===1?'DIRECTLY impacted':hop===2?'indirectly impacted':'downstream')+' ('+byHop[hop].length+' module'+(byHop[hop].length>1?'s':'')+')</div>';
+      bh+='<div style="display:flex;flex-direction:column;gap:6px">';
+      byHop[hop].forEach(function(c){
+        var sev=c.severity||'MEDIUM';
+        var sevCol=sev==='HIGH'?'var(--danger)':sev==='MEDIUM'?'var(--warn)':'var(--muted)';
+        var sevBg=sev==='HIGH'?'var(--danger-dim)':sev==='MEDIUM'?'var(--warn-dim)':'var(--surface2)';
+        var accessFlag=c.needsAccess===false?'':
+          (g2.isPublicOnly?'<span style="font-size:9px;color:var(--warn);margin-left:6px">🔒 needs access</span>':'');
+        bh+='<div style="display:flex;align-items:flex-start;gap:10px;padding:9px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">';
+        bh+='<div style="flex:1">';
+        bh+='<div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:3px">';
+        bh+='<span style="font-size:12px;font-weight:600">'+esc(c.module)+'</span>';
+        bh+=layerBadge(c.layer);
+        bh+=accessFlag;
+        bh+='</div>';
+        if(c.reason){bh+='<div style="font-size:11px;color:var(--muted);line-height:1.5">'+esc(c.reason)+'</div>';}
+        bh+='</div>';
+        bh+='<div style="flex-shrink:0;padding:3px 8px;border-radius:6px;font-size:10px;font-weight:700;background:'+sevBg+';color:'+sevCol+'">'+sev+'</div>';
+        bh+='</div>';
+      });
+      bh+='</div></div>';
+    });
+
+    // Layer summary grid
+    if(br.layerSummary){
+      var layers=Object.keys(br.layerSummary).filter(function(k){return br.layerSummary[k]&&br.layerSummary[k].length;});
+      if(layers.length){
+        bh+='<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border)">';
+        bh+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Impact by layer</div>';
+        bh+='<div style="display:flex;flex-wrap:wrap;gap:8px">';
+        layers.forEach(function(layer){
+          var mods=br.layerSummary[layer];
+          var col=LAYER_COLOR[layer]||LAYER_COLOR.Unknown;
+          var bg=LAYER_BG[layer]||LAYER_BG.Unknown;
+          bh+='<div style="padding:8px 12px;border:1px solid '+col+';background:'+bg+';border-radius:8px;min-width:110px">';
+          bh+='<div style="font-size:10px;font-weight:700;color:'+col+';margin-bottom:4px">'+layer+'</div>';
+          mods.forEach(function(m){bh+='<div style="font-size:10px;color:var(--muted)">• '+esc(m)+'</div>';});
+          bh+='</div>';
+        });
+        bh+='</div></div>';
+      }
+    }
+
+    h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--neo4j)"></div><h3>2 · Blast radius — '+(br.totalImpacted||chain.length)+' modules across '+(Object.keys(byHop).filter(function(k){return byHop[k].length;}).length)+' hops</h3></div><div class="rbody">'+bh+'</div></div>';
+  }
 
   // risk + do not touch
   h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--danger)"></div><h3>3 · Risk &amp; do-not-touch</h3></div><div class="rbody"><div class="sec-title">Impacted modules</div>';
