@@ -306,6 +306,13 @@ function render(){
     if(has(srcs,'swagger'))h+=fld('sw_url','Swagger / OpenAPI URL','https://api.com/swagger.json','optional');
     if(has(srcs,'db_schema'))h+=fld('db_url','DB connection (read-only)','postgresql://readonly:***@host/db','optional');
     if(has(srcs,'manual_modules'))h+=fld('mods','Module names (comma-separated)','Chat UI, AI Router, Cart, Payment, Allergy Safety');
+    // Ownership toggle — owned projects can have upgrades validated + implementation plans
+    h+='<div class="fld" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)"><label class="fll">Do you own this project?</label>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px">';
+    h+='<div class="tag'+(flds.owned==='1'?' s':'')+'" data-own="1" onclick="setOwned(\'1\')" style="cursor:pointer">&#128296; Yes — I own it / have source access</div>';
+    h+='<div class="tag'+(flds.owned==='0'||!flds.owned?' s':'')+'" data-own="0" onclick="setOwned(\'0\')" style="cursor:pointer">&#127760; No — public URL only</div>';
+    h+='</div>';
+    h+='<div class="hint">Owned = you have the GitHub repo / Worker / source, so upgrades can be validated and an implementation plan generated. Public = discovery only, upgrades blocked, confidence capped at 65%.</div></div>';
     h+='<div class="fld" style="margin-top:18px;padding-top:16px;border-top:1px solid var(--border)"><label class="fll">Cloudflare Worker URL<span class="req-badge">required</span></label><input id="f_worker" type="text" value="'+esc(WORKER_URL)+'" placeholder="https://test-plan-architect.YOURNAME.workers.dev" oninput="WORKER_URL=this.value;localStorage.setItem(\'tpa_worker\',this.value)"/><div class="hint">Paste the URL you get after deploying the Worker. The keys live there, never here.</div></div>';
     if(srcs.length===0)h='<div class="fallback">No sources selected — inference mode. Claude generates from your description. Add sources in step 2 to raise confidence.</div>'+h;
   }
@@ -419,7 +426,8 @@ async function generate(extraFlags){
     swaggerUrl:flds.a_swagger||'',
     stagingUrl:flds.a_staging||'',
     accessNotes:flds.a_notes||'',
-    manualModules:flds.mods||''
+    manualModules:flds.mods||'',
+    ownedByUser:flds.owned==='1'
     };
     lastIntake=intake;
   }
@@ -592,6 +600,15 @@ function renderResults(p){
   (p.sourcesUsed||[]).forEach(function(s){var cls=/neo4j/i.test(s)?'sp-neo4j':/pine/i.test(s)?'sp-pine':'sp-claude';h+='<div class="src-pill '+cls+'">'+esc(s)+'</div>';});
   h+='</div><div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6">'+esc(p.summary||'')+'</div>';
   h+='<div style="font-size:11px;color:var(--muted);margin-top:8px">Neo4j: '+(p.neo4jSummary?p.neo4jSummary.nodesCreatedOrMerged:0)+' nodes / '+(p.neo4jSummary?p.neo4jSummary.relationshipsCreatedOrMerged:0)+' rels merged · Pinecone: '+(p.pineconeSummary?p.pineconeSummary.matchesReturned:0)+' matches</div>';
+  // Ownership / access classification badge
+  if(p.appClassification){
+    var ac=p.appClassification;var owned=ac.ownershipStatus==='OWNED_BY_USER';
+    h+='<div style="margin-top:10px;padding:8px 12px;border-radius:8px;font-size:11px;line-height:1.6;border:1px solid '+(owned?'var(--ok)':'var(--warn)')+';background:'+(owned?'var(--ok-dim)':'var(--surface2)')+';color:'+(owned?'var(--ok)':'var(--warn)')+'">';
+    h+='<strong>'+esc(ac.badge||'')+'</strong><br>';
+    h+='Ownership: '+esc(ac.ownershipStatus||'')+' · Access: '+esc(ac.accessLevel||'')+' · Can validate upgrade: '+(ac.canValidateUpgrade?'yes':'no');
+    if(!ac.canValidateUpgrade){h+='<br>Confidence capped at '+Math.round((ac.confidenceCeiling||0.65)*100)+'% — public content cannot prove backend behavior.';}
+    h+='</div>';
+  }
   // GitHub diff summary
   if(p.githubDiffSummary&&p.githubDiffSummary.ok){
     var gd=p.githubDiffSummary;
@@ -811,6 +828,7 @@ function renderResults(p){
 function dlJSON(){if(!finalPlan)return;var b=new Blob([JSON.stringify(finalPlan,null,2)],{type:'application/json'});var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='test-plan.json';a.click();URL.revokeObjectURL(u);}
 function dlHTML(){if(!finalPlan)return;var html='<html><head><meta charset="utf-8"><title>Test Plan</title><style>body{font-family:Arial;margin:30px;color:#1a2230}h1{font-size:22px}h2{font-size:16px;margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:4px}table{border-collapse:collapse;width:100%;font-size:12px;margin-top:8px}td,th{border:1px solid #ccc;padding:6px;text-align:left}.warn{background:#fbeae8;border:1px solid #c0392b;padding:12px;border-radius:6px;margin:12px 0}</style></head><body>';html+='<h1>'+esc(finalPlan.title||'Test Plan')+'</h1><p>Confidence: '+Math.round((finalPlan.confidence>1?finalPlan.confidence/100:finalPlan.confidence)*100)+'% · '+esc(finalPlan.summary||'')+'</p>';var g2=finalPlan.gate2||{};html+='<div class="warn"><b>Gate 2:</b> '+esc(g2.warning||'')+'<br>'+(g2.requiredChecks||[]).map(function(c){return '• '+esc(c);}).join('<br>')+'</div>';html+='<h2>Test Cases</h2><table><tr><th>ID</th><th>Scenario</th><th>Risk</th><th>Mode</th><th>Module</th></tr>';(finalPlan.testCases||[]).forEach(function(t){html+='<tr><td>'+esc(t.id)+'</td><td>'+esc(t.scenario)+'</td><td>'+esc(t.risk)+'</td><td>'+esc(t.mode)+'</td><td>'+esc(t.module||'')+'</td></tr>';});html+='</table><h2>Release Gates</h2><ul>'+(finalPlan.releaseGates||[]).map(function(g){return '<li>'+esc(g)+'</li>';}).join('')+'</ul></body></html>';var b=new Blob([html],{type:'text/html'});var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='test-plan-report.html';a.click();URL.revokeObjectURL(u);}
 function approveExisting(){generate({approveExistingNodes:true});}
+function setOwned(v){flds.owned=v;render();}
 function resetAll(){cur=0;atype=null;srcs=[];tests=[];flds={};finalPlan=null;lastIntake=null;document.getElementById('results').style.display='none';document.getElementById('results').innerHTML='';document.getElementById('wizard').style.display='block';document.getElementById('intro').style.display='block';document.getElementById('hdr-sub').textContent='Tell us about your app → backend builds the graph → generates the plan';render();window.scrollTo({top:0,behavior:'smooth'});}
 
 document.addEventListener('click',function(e){var el=e.target.closest('.tag');if(el&&el.dataset.tag){tog(tests,el.dataset.tag);render();}});
