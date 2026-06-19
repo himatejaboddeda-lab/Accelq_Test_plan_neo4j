@@ -139,6 +139,25 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
 .dl-pdf{border-color:var(--danger);color:var(--danger)}.dl-json{border-color:var(--git);color:var(--git)}
 .dl-html{border-color:var(--warn);color:var(--warn)}.dl-new{border-color:var(--muted);color:var(--muted)}
 @media print{body{background:#fff;color:#000}#wizard,#loading,.dl-row,.hdr-sub,.intro{display:none}.rcard{border:1px solid #ccc;break-inside:avoid}}
+
+/* ── Step 6: Access verification styles ─── */
+.access-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px}
+.access-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px}
+.access-card-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:10px}
+.access-label{font-size:11px;color:var(--muted);margin-bottom:4px;display:block;font-weight:600}
+.access-input{width:100%;padding:8px 10px;background:var(--bg);border:1px solid var(--border);border-radius:6px;color:var(--text);font-family:inherit;font-size:12px;outline:none}
+.access-input:focus{border-color:var(--neo4j)}
+.av-row{display:flex;justify-content:space-between;align-items:flex-start;padding:7px 0;border-bottom:1px solid var(--border);font-size:12px;gap:10px}
+.av-row:last-child{border:none}
+.av-label{color:var(--muted);flex-shrink:0}
+.av-val{font-size:11px;color:var(--text);text-align:right;word-break:break-word}
+.badge-full{background:var(--ok-dim);border:1px solid var(--ok);color:var(--ok)}
+.badge-partial{background:var(--warn-dim);border:1px solid var(--warn);color:var(--warn)}
+.badge-public{background:var(--danger-dim);border:1px solid var(--danger);color:var(--danger)}
+.sys-ok{color:var(--ok);font-weight:600}
+.sys-fail{color:var(--danger)}
+.sys-warn{color:var(--warn)}
+.sys-na{color:var(--muted)}
 </style>
 </head>
 <body>
@@ -151,7 +170,7 @@ body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSy
   <div class="card">
     <div class="sh1" id="sh1"></div><div class="sh2" id="sh2"></div>
     <div id="body"></div>
-    <div class="nav"><button class="btn btn-back" id="bp" onclick="go(-1)">← Back</button><button class="btn btn-next" id="bn" onclick="go(1)">Continue →</button></div>
+    <div class="nav"><button class="btn btn-back" id="bp" onclick="go(-1)">← Back</button><button id="skip-access" class="btn btn-next" onclick="skipAccess()" style="display:none;background:var(--surface2);border:1px solid var(--border);color:var(--muted);margin-right:8px">Skip — public URL only</button><button class="btn btn-next" id="bn" onclick="go(1)">Continue →</button></div>
   </div>
 </div>
 
@@ -178,6 +197,8 @@ var STEPS=[
   {h:"What kinds of testing do you need?",s:"The plan covers exactly the types you select here."},
   {h:"Provide access (all optional)",s:"Give what you have. Anything blank → Claude infers and marks lower confidence."},
   {h:"Review — here is what will be built",s:"Nodes are created on submit, not before. Existing graph data is protected."}
+,
+  {h:"Verify access credentials",s:"Optional — provide API keys to unlock backend test cases. Skip to use public URL only."}
 ];
 var ATYPES=[
   {id:"web",l:"Web application",s:"Browser UI and functional flows"},
@@ -204,13 +225,73 @@ function esc(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'
 
 function renderDots(){var h='';STEPS.forEach(function(_,i){if(i>0)h+='<div class="dline"></div>';h+='<div class="dot'+(i<cur?' dn':i===cur?' act':'')+'">'+(i<cur?'✓':i+1)+'</div>';});document.getElementById('dots').innerHTML=h;}
 
+
+function buildAccessStep(){
+  var h2='';
+  h2+='<div style="background:var(--ok-dim);border:1px solid var(--ok);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:12px;line-height:1.6">';
+  h2+='<strong style="color:var(--ok)">Optional step — skip if you only have a public URL</strong><br>';
+  h2+='<span style="color:var(--muted)">Providing credentials lets the Worker verify real access and unlock API/backend test cases. Nothing you enter here is stored — it is sent directly to your Cloudflare Worker which holds all keys securely.</span>';
+  h2+='</div>';
+
+  h2+='<div class="access-grid">';
+
+  // Jira
+  h2+='<div class="access-card">';
+  h2+='<div class="access-card-title">🔵 Jira credentials</div>';
+  h2+='<label class="access-label">Jira base URL</label><input class="access-input" id="a_jira_url" placeholder="https://yourteam.atlassian.net" value="'+esc(flds.a_jira_url||'')+'"><br><br>';
+  h2+='<label class="access-label">Jira email</label><input class="access-input" id="a_jira_email" type="email" placeholder="you@email.com" value="'+esc(flds.a_jira_email||'')+'"><br><br>';
+  h2+='<label class="access-label">Jira API token</label><input class="access-input" id="a_jira_token" type="password" placeholder="••••••••" value="'+esc(flds.a_jira_token||'')+'"><br>';
+  h2+='<div style="font-size:10px;color:var(--muted);margin-top:4px">Get token: id.atlassian.com → Security → API tokens</div>';
+  h2+='</div>';
+
+  // GitHub
+  h2+='<div class="access-card">';
+  h2+='<div class="access-card-title">⚫ GitHub</div>';
+  h2+='<label class="access-label">GitHub repo (owner/repo)</label><input class="access-input" id="a_gh_repo" placeholder="owner/repo-name" value="'+esc(flds.a_gh_repo||flds.gh_url||'')+'"><br><br>';
+  h2+='<label class="access-label">GitHub token (optional for public repos)</label><input class="access-input" id="a_gh_token" type="password" placeholder="ghp_••••••••" value="'+esc(flds.a_gh_token||'')+'"><br><br>';
+  h2+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px;margin-top:4px">';
+  h2+='<div style="font-size:10px;font-weight:700;color:var(--neo4j);margin-bottom:8px">⑂ Diff — what changed between versions</div>';
+  h2+='<label class="access-label">Compare FROM (old version)</label>';
+  h2+='<input class="access-input" id="a_gh_base" placeholder="main, v1.0.0, abc1234 (leave blank for last commit)" value="'+esc(flds.a_gh_base||'')+'"><br><br>';
+  h2+='<label class="access-label">Compare TO (new version)</label>';
+  h2+='<input class="access-input" id="a_gh_head" placeholder="HEAD, feature/branch, def5678 (default: HEAD)" value="'+esc(flds.a_gh_head||'')+'"><br>';
+  h2+='<div style="font-size:10px;color:var(--muted);margin-top:4px">Example: FROM=main TO=feature/inventory — reads every line that changed between those two branches</div>';
+  h2+='</div>';
+  h2+='</div>';
+
+  // API / Backend
+  h2+='<div class="access-card">';
+  h2+='<div class="access-card-title">🟣 API / Backend</div>';
+  h2+='<label class="access-label">API base URL</label><input class="access-input" id="a_api_url" placeholder="https://api.yourapp.com" value="'+esc(flds.a_api_url||'')+'"><br><br>';
+  h2+='<label class="access-label">API auth token (optional)</label><input class="access-input" id="a_api_token" type="password" placeholder="Bearer ••••••••" value="'+esc(flds.a_api_token||'')+'"><br><br>';
+  h2+='<label class="access-label">Swagger / OpenAPI URL (optional)</label><input class="access-input" id="a_swagger" placeholder="https://api.yourapp.com/swagger.json" value="'+esc(flds.a_swagger||'')+'"><br>';
+  h2+='</div>';
+
+  // Staging / DB
+  h2+='<div class="access-card">';
+  h2+='<div class="access-card-title">🟡 Staging / DB (optional)</div>';
+  h2+='<label class="access-label">Staging URL</label><input class="access-input" id="a_staging" placeholder="https://staging.yourapp.com" value="'+esc(flds.a_staging||'')+'"><br><br>';
+  h2+='<label class="access-label">Notes (access details, env info)</label>';
+  h2+='<textarea class="access-input" id="a_notes" rows="3" placeholder="e.g. test DB is read-only, payment uses sandbox, auth uses test tokens...">'+esc(flds.a_notes||'')+'</textarea>';
+  h2+='</div>';
+
+  h2+='</div>';
+  return h2;
+}
+
+
 function render(){
   var step=STEPS[cur];
   document.getElementById('sh1').textContent=step.h;
   document.getElementById('sh2').textContent=step.s;
   document.getElementById('bp').style.display=cur>0?'':'none';
-  document.getElementById('bn').textContent=cur===STEPS.length-1?'⚡ Generate test plan':'Continue →';
-  document.getElementById('bn').className=cur===STEPS.length-1?'btn btn-run':'btn btn-next';
+  var isLastStep = cur===STEPS.length-1;
+  var isAccessStep = cur===5;
+  document.getElementById('bn').textContent = isLastStep ? '⚡ Verify & Generate' : 'Continue →';
+  document.getElementById('bn').className = isLastStep ? 'btn btn-run' : 'btn btn-next';
+  // Show/hide skip button for step 6
+  var skipEl = document.getElementById('skip-access');
+  if(skipEl) skipEl.style.display = isAccessStep ? 'inline-block' : 'none';
   var h='';
   if(cur===0){h='<div class="og">';ATYPES.forEach(function(o){h+='<div class="oc'+(atype===o.id?' s':'')+'" onclick="atype=\''+o.id+'\';render()"><div class="ol">'+o.l+'</div><div class="os">'+o.s+'</div></div>';});h+='</div>';}
   else if(cur===1){h='<div class="og">';SRCS.forEach(function(o){h+='<div class="oc'+(has(srcs,o.id)?' s':'')+'" onclick="tog(srcs,\''+o.id+'\');render()"><div class="ol">'+o.l+'</div><div class="os">'+o.s+'</div><div class="on">'+o.n+'</div></div>';});h+='</div>';if(srcs.length===0)h+='<div class="note-after">No sources selected is OK. Claude infers the plan from your description — marked lower confidence.</div>';}
@@ -229,6 +310,7 @@ function render(){
     if(srcs.length===0)h='<div class="fallback">No sources selected — inference mode. Claude generates from your description. Add sources in step 2 to raise confidence.</div>'+h;
   }
   else if(cur===4){h+=buildSummary();}
+  if(cur===5){h+=buildAccessStep();}
   document.getElementById('body').innerHTML=h;
   renderDots();
 }
@@ -257,11 +339,31 @@ function buildSummary(){
   return h;
 }
 
+function collectStep(s){
+  // Collect inputs from whatever step is currently displayed
+  var ids={
+    3:['app_url','appname','desc','change','gh_url','jira_key','mods'],
+    5:['a_jira_url','a_jira_email','a_jira_token','a_gh_repo','a_gh_token','a_gh_base','a_gh_head',
+       'a_api_url','a_api_token','a_swagger','a_staging','a_notes']
+  };
+  (ids[s]||[]).forEach(function(id){
+    var el=document.getElementById(id);
+    if(el) flds[id]=el.value||'';
+  });
+}
+
 function go(d){
-  if(d===1&&cur===STEPS.length-1){generate();return;}
+  collectStep(cur);  // Always collect current step's fields
+  if(d===1&&cur===STEPS.length-1){generate();return;}  // Last step = generate
   if(d===1&&cur<STEPS.length-1)cur++;
   if(d===-1&&cur>0)cur--;
   render();window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function skipAccess(){
+  // Skip step 6 — generate with public URL only
+  collectStep(5);  // Still collect in case partially filled
+  generate();
 }
 
 /* ====== loading steps ====== */
@@ -297,8 +399,19 @@ async function generate(){
     releaseName:flds.change||'Release',
     sources:srcs,
     testTypes:tests,
-    githubRepo:flds.gh_url||'',
+    githubRepo:flds.a_gh_repo||flds.gh_url||'',
+    githubToken:flds.a_gh_token||'',
+    compareFrom:flds.a_gh_base||'',
+    compareTo:flds.a_gh_head||'',
     jiraProjectKey:flds.jira_key||'',
+    jiraBaseUrl:flds.a_jira_url||'',
+    jiraEmail:flds.a_jira_email||'',
+    jiraApiToken:flds.a_jira_token||'',
+    apiBaseUrl:flds.a_api_url||'',
+    apiToken:flds.a_api_token||'',
+    swaggerUrl:flds.a_swagger||'',
+    stagingUrl:flds.a_staging||'',
+    accessNotes:flds.a_notes||'',
     manualModules:flds.mods||''
   };
 
@@ -341,6 +454,27 @@ function renderResults(p){
   document.getElementById('loading').style.display='none';
   var R=document.getElementById('results');R.style.display='block';
   document.getElementById('hdr-sub').textContent='Test plan generated';
+
+  // CLARIFICATION MODE — show questions, no test plan
+  if(p&&p.clarificationNeeded){
+    document.getElementById('hdr-sub').textContent='Clarification required';
+    var cl='<div style="background:var(--surface);border:2px solid var(--danger);border-radius:12px;padding:24px;max-width:700px;margin:0 auto">';
+    cl+='<div style="font-size:18px;font-weight:700;color:var(--danger);margin-bottom:10px">&#9940; Cannot generate test plan</div>';
+    cl+='<div style="font-size:13px;color:var(--muted);margin-bottom:18px;line-height:1.7">'+esc(p.summary)+'</div>';
+    cl+='<div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em">Answer these questions then regenerate:</div>';
+    (p.questionsToAnswer||[]).forEach(function(q,i){
+      cl+='<div style="padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:6px;font-size:12px;line-height:1.6">';
+      cl+='<span style="color:var(--neo4j);font-weight:700;margin-right:6px">'+(i+1)+'.</span>'+esc(q)+'</div>';
+    });
+    cl+='<div style="margin-top:16px;padding:12px 14px;background:var(--ok-dim);border:1px solid var(--ok);border-radius:8px;font-size:11px;color:var(--ok);line-height:1.7">';
+    cl+='<strong>How to fix:</strong> Go back to Step 4 and fill in <strong>Module names</strong> with your confirmed modules ';
+    cl+='(e.g. Login, Portfolio, Buy Order, Sell Order). Optionally add GitHub repo or Swagger URL in Step 6. Then generate again.';
+    cl+='</div>';
+    cl+='<button onclick="resetAll()" style="margin-top:16px;padding:12px 22px;background:var(--neo4j);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#8592; Go back and answer questions</button>';
+    cl+='</div>';
+    R.innerHTML=cl;
+    return;
+  }
   var conf=p.confidence>1?p.confidence/100:(p.confidence||0.5);
   var hall=p.hallucinationScore||0.1;
   var C=226.2;
@@ -355,27 +489,101 @@ function renderResults(p){
   (p.sourcesUsed||[]).forEach(function(s){var cls=/neo4j/i.test(s)?'sp-neo4j':/pine/i.test(s)?'sp-pine':'sp-claude';h+='<div class="src-pill '+cls+'">'+esc(s)+'</div>';});
   h+='</div><div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6">'+esc(p.summary||'')+'</div>';
   h+='<div style="font-size:11px;color:var(--muted);margin-top:8px">Neo4j: '+(p.neo4jSummary?p.neo4jSummary.nodesCreatedOrMerged:0)+' nodes / '+(p.neo4jSummary?p.neo4jSummary.relationshipsCreatedOrMerged:0)+' rels merged · Pinecone: '+(p.pineconeSummary?p.pineconeSummary.matchesReturned:0)+' matches</div>';
+  // GitHub diff summary
+  if(p.githubDiffSummary&&p.githubDiffSummary.ok){
+    var gd=p.githubDiffSummary;
+    h+='<div style="font-size:11px;margin-top:6px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px">';
+    h+='<span style="color:var(--ok);font-weight:700">⑂ GitHub diff: </span>';
+    h+=esc(gd.filesChanged)+' files changed · '+esc(gd.totalCommits)+' commit(s)';
+    if(gd.base){h+=' · '+esc(gd.base)+'...'+esc(gd.head||'HEAD');}
+    if(gd.moduleHints&&gd.moduleHints.length){h+='<br><span style="color:var(--muted)">Modules inferred: </span>'+esc(gd.moduleHints.join(', '));}
+    if(gd.commits&&gd.commits.length){
+      h+='<details style="margin-top:6px"><summary style="cursor:pointer;font-size:10px;color:var(--muted)">▶ '+gd.commits.length+' commit message(s)</summary>';
+      gd.commits.forEach(function(c){h+='<div style="font-size:10px;color:var(--muted);padding:2px 0">• '+esc(c)+'</div>';});
+      h+='</details>';
+    }
+    h+='</div>';
+  }
   if(p.neo4jSummary&&p.neo4jSummary.error){h+='<div style="font-size:11px;color:var(--danger);margin-top:6px;padding:8px 10px;background:var(--danger-dim);border-radius:6px;border:1px solid var(--danger)">⚠ Neo4j error: '+esc(p.neo4jSummary.error)+'<br><span style="color:var(--muted)">Fix: check NEO4J_QUERY_URL is the Cypher URL (not the GraphQL URL). It must end in /db/neo4j/query/v2 or /db/neo4j/tx/commit</span></div>';}
   h+='</div></div></div></div>';
 
-  // GATE 2 banner — shows risk areas AND access boundary issues
-  var g2IsPublic = g2.isPublicOnly;
-  var g2Color = g2IsPublic ? 'var(--warn)' : (g2.triggered ? 'var(--danger)' : 'var(--ok)');
-  var g2BgClass = g2IsPublic ? 'g2-warn' : (g2.triggered ? 'g2-warn' : 'g2-ok');
-  var g2Icon = g2IsPublic ? '🔒' : (g2.triggered ? '⚠' : '✓');
-  var g2Label = g2IsPublic ? 'Gate 2 — Access boundary triggered' : (g2.triggered ? 'Gate 2 — Guardrail triggered' : 'Gate 2 — Guardrail clear');
-  h+='<div class="gate2-banner '+g2BgClass+'">';
-  h+='<div class="g2-title" style="color:'+g2Color+'">'+g2Icon+' '+g2Label+'</div>';
-  // Access level badge
-  if(g2IsPublic){
-    h+='<div style="display:inline-block;padding:3px 10px;background:var(--warn-dim);border:1px solid var(--warn);border-radius:6px;font-size:10px;font-weight:700;color:var(--warn);margin-bottom:8px">🌐 PUBLIC URL ONLY — no backend access</div>';
-  } else {
-    h+='<div style="display:inline-block;padding:3px 10px;background:var(--ok-dim);border:1px solid var(--ok);border-radius:6px;font-size:10px;font-weight:700;color:var(--ok);margin-bottom:8px">🔑 FULL ACCESS — own app</div>';
+  // ── GATE 2 banner — 3-tier access level system ──
+  var av = p.accessVerification || {};
+  var g2Level = (g2.accessLevel || av.accessLevel || 'PUBLIC_URL_ONLY');
+  var g2IsPublic  = g2Level === 'PUBLIC_URL_ONLY';
+  var g2IsPartial = g2Level === 'PARTIAL_ACCESS';
+  var g2IsFull    = g2Level === 'VERIFIED_FULL_ACCESS';
+
+  // Access Verification Summary section
+  if(av.verifiedSystems){
+    h+='<div class="rcard"><div class="rhead"><div class="dot2" style="background:var(--neo4j)"></div><h3>Access Verification Summary</h3></div><div class="rbody">';
+
+    // External access badge — based ONLY on user-provided external credentials
+    var badgeText  = g2IsFull  ? '🔑 FULL EXTERNAL ACCESS — verified credentials'
+                   : g2IsPartial ? '🟡 PARTIAL EXTERNAL ACCESS — one system verified'
+                   : '🌐 PUBLIC URL ONLY — no verified external app access';
+    var badgeStyle = g2IsFull  ? 'background:var(--ok-dim);border-color:var(--ok);color:var(--ok)'
+                   : g2IsPartial ? 'background:var(--warn-dim);border-color:var(--warn);color:var(--warn)'
+                   : 'background:var(--danger-dim);border-color:var(--danger);color:var(--danger)';
+    h+='<div style="padding:8px 14px;border-radius:8px;border:1px solid;font-size:12px;font-weight:700;margin-bottom:14px;'+badgeStyle+'">'+badgeText+'</div>';
+
+    // ── EXTERNAL credentials (user-provided per app) ──
+    h+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">External app credentials (user-provided)</div>';
+    var extSystems = {jira:'Jira', github:'GitHub', api:'API / Swagger'};
+    h+='<div style="margin-bottom:14px">';
+    Object.keys(extSystems).forEach(function(k){
+      var s = av.verifiedSystems[k] || {status:'not_provided'};
+      var sc   = s.status==='connected' ? 'sys-ok'
+               : s.status==='not_provided' ? 'sys-na'
+               : 'sys-fail';
+      var icon = s.status==='connected' ? '✓'
+               : s.status==='not_provided' ? '—'
+               : '✗';
+      // For not_provided: show "not provided" not "invalid" or an error code
+      var statusText = s.status==='not_provided' ? 'not provided'
+                     : s.status==='connected' ? s.status
+                     : s.status.replace(/_/g,' ');
+      var detail = (s.status!=='not_provided' && s.details) ? ' — '+esc(s.details.slice(0,80)) : '';
+      h+='<div class="av-row"><span class="av-label">'+extSystems[k]+'</span><span class="'+sc+'">'+icon+' '+esc(statusText)+detail+'</span></div>';
+    });
+    h+='</div>';
+
+    // ── INTERNAL systems (owner's QA knowledge base — always connected) ──
+    h+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Internal QA knowledge (owner's systems)</div>';
+    h+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--muted)">';
+    h+='<div style="color:var(--neo4j);font-weight:600;margin-bottom:4px">ℹ These are the owner's internal tools — not proof of access to the app under test</div>';
+    var intSystems = {neo4jRead:'Neo4j (graph knowledge)', neo4jWrite:'Neo4j (write)', pinecone:'Pinecone (vector search)'};
+    Object.keys(intSystems).forEach(function(k){
+      var s = av.verifiedSystems[k] || {status:'not_provided'};
+      var icon = s.status==='connected' ? '✓' : '—';
+      var col  = s.status==='connected' ? 'var(--ok)' : 'var(--muted)';
+      h+='<div style="color:'+col+';margin-top:3px">'+icon+' '+intSystems[k]+(s.details?' — '+esc(s.details):'')+'</div>';
+    });
+    h+='</div>';
+
+    // Allowed capabilities
+    if(av.allowedCapabilities&&av.allowedCapabilities.length){
+      h+='<div style="font-size:11px;color:var(--ok);margin-bottom:6px"><strong>Allowed test modes:</strong> '+esc(av.allowedCapabilities.join(' · '))+'</div>';
+    }
+    // Blocked capabilities
+    if(av.blockedCapabilities&&av.blockedCapabilities.length){
+      h+='<div style="font-size:11px;color:var(--danger)">';
+      h+='<strong>Blocked — credentials required:</strong><br>';
+      av.blockedCapabilities.slice(0,6).forEach(function(b){ h+='• '+esc(b)+'<br>'; });
+      h+='</div>';
+    }
+    h+='</div></div>';
   }
+
+  // Gate 2 risk banner
+  var g2BgClass = g2IsPublic ? 'g2-warn' : (g2.triggered ? 'g2-warn' : 'g2-ok');
+  var g2Icon = g2IsPublic ? '🔒' : g2IsPartial ? '🟡' : (g2.triggered ? '⚠' : '✓');
+  var g2Label = g2IsPublic ? 'Gate 2 — Access boundary triggered' : g2IsPartial ? 'Gate 2 — Partial access' : (g2.triggered ? 'Gate 2 — Guardrail triggered' : 'Gate 2 — All clear');
+  h+='<div class="gate2-banner '+g2BgClass+'">';
+  h+='<div class="g2-title">'+g2Icon+' '+g2Label+'</div>';
   h+='<div style="font-size:12px;line-height:1.6;margin-bottom:8px">'+esc(g2.warning)+'</div>';
-  // Blocked test cases
   if(g2.backendCasesBlocked&&g2.backendCasesBlocked.length){
-    h+='<div style="font-size:11px;color:var(--warn);padding:8px 10px;background:var(--warn-dim);border-radius:6px;margin-bottom:8px">⛔ Cannot execute without API access: '+esc(g2.backendCasesBlocked.join(', '))+'</div>';
+    h+='<div style="font-size:11px;padding:8px 10px;background:var(--danger-dim);border-radius:6px;margin-bottom:8px;color:var(--danger)">⛔ Cannot execute without verified API access: '+esc(g2.backendCasesBlocked.join(', '))+'</div>';
   }
   if(g2.requiredChecks&&g2.requiredChecks.length){g2.requiredChecks.forEach(function(c){h+='<div class="g2-check">• '+esc(c)+'</div>';});}
   h+='</div>';
