@@ -549,9 +549,9 @@ function renderResults(p){
     h+='</div>';
 
     // ── INTERNAL systems (owner's QA knowledge base — always connected) ──
-    h+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Internal QA knowledge (owner's systems)</div>';
+    h+='<div style="font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Internal QA knowledge (owner&#39;s systems)</div>';
     h+='<div style="background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:10px 12px;margin-bottom:14px;font-size:11px;color:var(--muted)">';
-    h+='<div style="color:var(--neo4j);font-weight:600;margin-bottom:4px">ℹ These are the owner's internal tools — not proof of access to the app under test</div>';
+    h+='<div style="color:var(--neo4j);font-weight:600;margin-bottom:4px">&#x2139; These are the owner&#39;s internal tools &#8212; not proof of access to the app under test</div>';
     var intSystems = {neo4jRead:'Neo4j (graph knowledge)', neo4jWrite:'Neo4j (write)', pinecone:'Pinecone (vector search)'};
     Object.keys(intSystems).forEach(function(k){
       var s = av.verifiedSystems[k] || {status:'not_provided'};
