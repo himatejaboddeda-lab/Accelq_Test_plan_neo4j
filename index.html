@@ -379,7 +379,8 @@ function showLoad(active){
 }
 
 /* ====== call the Worker ====== */
-async function generate(){
+var lastIntake=null;
+async function generate(extraFlags){
   if(!WORKER_URL||WORKER_URL.indexOf('YOUR_WORKER_URL')>-1){
     alert('Paste your Cloudflare Worker URL in step 4 first.');cur=3;render();return;
   }
@@ -390,7 +391,12 @@ async function generate(){
   document.getElementById('loading').style.display='block';
   document.getElementById('hdr-sub').textContent='Generating…';
 
-  var intake={
+  var intake;
+  if(extraFlags&&lastIntake){
+    // Re-submit (e.g. user approved existing nodes) — reuse the same intake + add flags
+    intake=Object.assign({},lastIntake,extraFlags);
+  }else{
+    intake={
     appName:flds.appname||'Untitled App',
     appType:(ATYPES.find(function(a){return a.id===atype;})||{}).l||'web',
     appUrl:flds.app_url||'',
@@ -404,6 +410,7 @@ async function generate(){
     compareFrom:flds.a_gh_base||'',
     compareTo:flds.a_gh_head||'',
     jiraProjectKey:flds.jira_key||'',
+    jiraIssueKey:flds.jira_issue||'',
     jiraBaseUrl:flds.a_jira_url||'',
     jiraEmail:flds.a_jira_email||'',
     jiraApiToken:flds.a_jira_token||'',
@@ -413,7 +420,9 @@ async function generate(){
     stagingUrl:flds.a_staging||'',
     accessNotes:flds.a_notes||'',
     manualModules:flds.mods||''
-  };
+    };
+    lastIntake=intake;
+  }
 
   // animate loading steps
   var li=0;showLoad(0);
@@ -455,6 +464,37 @@ function renderResults(p){
   var R=document.getElementById('results');R.style.display='block';
   document.getElementById('hdr-sub').textContent='Test plan generated';
 
+  // NEEDS APPROVAL — no fresh requirement, but app has existing nodes.
+  // Ask the user whether to proceed with the existing graph (any app).
+  if(p&&p.needsApproval){
+    document.getElementById('hdr-sub').textContent='Approval needed';
+    var ap='<div style="background:var(--surface);border:2px solid var(--warn);border-radius:12px;padding:24px;max-width:700px;margin:0 auto">';
+    ap+='<div style="font-size:18px;font-weight:700;color:var(--warn);margin-bottom:10px">&#9888;&#65039; No new requirement found</div>';
+    ap+='<div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.7">'+esc(p.summary)+'</div>';
+    // existing graph chips
+    if(p.existingGraphSummary&&p.existingGraphSummary.modulesInNeo4j&&p.existingGraphSummary.modulesInNeo4j.length){
+      ap+='<div style="margin-bottom:16px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">';
+      ap+='<div style="font-size:11px;font-weight:700;color:var(--neo4j);margin-bottom:6px">EXISTING NEO4J GRAPH — '+esc(String(p.existingGraphSummary.nodeCount||p.existingGraphSummary.modulesInNeo4j.length))+' nodes</div>';
+      p.existingGraphSummary.modulesInNeo4j.forEach(function(m){
+        ap+='<span style="display:inline-block;padding:2px 10px;background:var(--neo4j-dim);border:1px solid var(--neo4j);border-radius:10px;font-size:11px;color:var(--neo4j);margin:2px">'+esc(m)+'</span>';
+      });
+      ap+='<div style="font-size:10px;color:var(--muted);margin-top:6px">Source: '+esc(p.existingGraphSummary.source||'existing graph')+'</div>';
+      ap+='</div>';
+    }
+    if(p.jiraSearched){
+      ap+='<div style="font-size:11px;color:var(--muted);margin-bottom:16px">Jira project '+esc(p.jiraSearched.project||'(none)')+': '+esc(String(p.jiraSearched.storiesFound||0))+' tickets found.</div>';
+    }
+    var opt=p.approvalOptions||{};
+    ap+='<div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:8px">';
+    ap+='<button onclick="approveExisting()" style="flex:1;min-width:240px;padding:13px 18px;background:var(--ok);color:#04130c;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#10003; '+esc(opt.proceedLabel||'Yes — generate from existing nodes')+'</button>';
+    ap+='<button onclick="resetAll()" style="flex:1;min-width:240px;padding:13px 18px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">'+esc(opt.cancelLabel||'No — I\'ll add a requirement first')+'</button>';
+    ap+='</div>';
+    ap+='<div style="margin-top:14px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;font-size:11px;color:var(--muted);line-height:1.6">Note: a baseline plan from existing nodes describes what the app <strong>is</strong>, not validation of a new change. For change validation, add a Jira ticket, description, modules, GitHub diff, or API spec.</div>';
+    ap+='</div>';
+    R.innerHTML=ap;
+    return;
+  }
+
   // PERMISSION REQUIRED — public URL app + Jira update without credentials
   if(p&&p.permissionRequired){
     document.getElementById('hdr-sub').textContent='Access credentials required';
@@ -495,6 +535,23 @@ function renderResults(p){
 
     pl+='<div style="margin-top:14px;padding:10px 14px;background:var(--ok-dim);border:1px solid var(--ok);border-radius:8px;font-size:11px;color:var(--ok);line-height:1.7">';
     pl+='<strong>How to provide access:</strong> '+esc(p.howToProvide||'Go to Step 6 (Verify Access) and fill in credentials.')+'</div>';
+
+    // BLOCKED TEST CASES — derived from Jira content only (e.g. SCRUM-18 menu items)
+    if(p.blockedTestCases&&p.blockedTestCases.length){
+      pl+='<div style="margin-top:16px">';
+      pl+='<div style="font-size:11px;font-weight:700;color:var(--warn);text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">'+esc(String(p.blockedTestCases.length))+' Blocked test case(s) — traced to Jira, awaiting access</div>';
+      p.blockedTestCases.forEach(function(bc){
+        pl+='<div style="padding:10px 12px;background:var(--surface2);border:1px solid var(--warn);border-radius:8px;margin-bottom:6px">';
+        pl+='<div style="font-size:12px;font-weight:700;color:var(--text)"><span style="color:var(--warn)">&#9940; '+esc(bc.id||'BLOCKED')+'</span> — '+esc(bc.title||'')+'</div>';
+        if(bc.reason){pl+='<div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.5">'+esc(bc.reason)+'</div>';}
+        if(bc.sourceRequired&&bc.sourceRequired.length){
+          pl+='<div style="font-size:10px;color:var(--muted);margin-top:5px">Needs: '+esc(bc.sourceRequired.join(' · '))+'</div>';
+        }
+        pl+='</div>';
+      });
+      pl+='</div>';
+    }
+
     pl+='<button onclick="resetAll()" style="margin-top:14px;padding:12px 22px;background:var(--warn);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#8592; Go back and add credentials</button>';
     pl+='</div>';
     R.innerHTML=pl;
@@ -753,7 +810,8 @@ function renderResults(p){
 
 function dlJSON(){if(!finalPlan)return;var b=new Blob([JSON.stringify(finalPlan,null,2)],{type:'application/json'});var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='test-plan.json';a.click();URL.revokeObjectURL(u);}
 function dlHTML(){if(!finalPlan)return;var html='<html><head><meta charset="utf-8"><title>Test Plan</title><style>body{font-family:Arial;margin:30px;color:#1a2230}h1{font-size:22px}h2{font-size:16px;margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:4px}table{border-collapse:collapse;width:100%;font-size:12px;margin-top:8px}td,th{border:1px solid #ccc;padding:6px;text-align:left}.warn{background:#fbeae8;border:1px solid #c0392b;padding:12px;border-radius:6px;margin:12px 0}</style></head><body>';html+='<h1>'+esc(finalPlan.title||'Test Plan')+'</h1><p>Confidence: '+Math.round((finalPlan.confidence>1?finalPlan.confidence/100:finalPlan.confidence)*100)+'% · '+esc(finalPlan.summary||'')+'</p>';var g2=finalPlan.gate2||{};html+='<div class="warn"><b>Gate 2:</b> '+esc(g2.warning||'')+'<br>'+(g2.requiredChecks||[]).map(function(c){return '• '+esc(c);}).join('<br>')+'</div>';html+='<h2>Test Cases</h2><table><tr><th>ID</th><th>Scenario</th><th>Risk</th><th>Mode</th><th>Module</th></tr>';(finalPlan.testCases||[]).forEach(function(t){html+='<tr><td>'+esc(t.id)+'</td><td>'+esc(t.scenario)+'</td><td>'+esc(t.risk)+'</td><td>'+esc(t.mode)+'</td><td>'+esc(t.module||'')+'</td></tr>';});html+='</table><h2>Release Gates</h2><ul>'+(finalPlan.releaseGates||[]).map(function(g){return '<li>'+esc(g)+'</li>';}).join('')+'</ul></body></html>';var b=new Blob([html],{type:'text/html'});var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='test-plan-report.html';a.click();URL.revokeObjectURL(u);}
-function resetAll(){cur=0;atype=null;srcs=[];tests=[];flds={};finalPlan=null;document.getElementById('results').style.display='none';document.getElementById('results').innerHTML='';document.getElementById('wizard').style.display='block';document.getElementById('intro').style.display='block';document.getElementById('hdr-sub').textContent='Tell us about your app → backend builds the graph → generates the plan';render();window.scrollTo({top:0,behavior:'smooth'});}
+function approveExisting(){generate({approveExistingNodes:true});}
+function resetAll(){cur=0;atype=null;srcs=[];tests=[];flds={};finalPlan=null;lastIntake=null;document.getElementById('results').style.display='none';document.getElementById('results').innerHTML='';document.getElementById('wizard').style.display='block';document.getElementById('intro').style.display='block';document.getElementById('hdr-sub').textContent='Tell us about your app → backend builds the graph → generates the plan';render();window.scrollTo({top:0,behavior:'smooth'});}
 
 document.addEventListener('click',function(e){var el=e.target.closest('.tag');if(el&&el.dataset.tag){tog(tests,el.dataset.tag);render();}});
 render();
