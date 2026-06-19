@@ -302,7 +302,7 @@ function render(){
     h+=fld('change','Change / release being tested','e.g. Add coupon discount code (drives blast radius)','','Inter');
     if(has(srcs,'app_url'))h+=fld('app_url','App URL (any public site works)','https://yourapp.com');
     if(has(srcs,'github'))h+=fld('gh_url','GitHub repo (owner/repo)','himatejaboddeda-lab/Chef_Krish_Testing_V7','optional');
-    if(has(srcs,'jira')){h+=fld('jira_url','Jira base URL','https://company.atlassian.net','optional');h+=fld('jira_key','Jira project key','SCRUM','optional');}
+    if(has(srcs,'jira')){h+=fld('jira_url','Jira base URL','https://company.atlassian.net','optional');h+=fld('jira_key','Jira project key','SCRUM','optional');h+=fld('jira_issue','Jira issue key (specific ticket)','SCRUM-19','optional');}
     if(has(srcs,'swagger'))h+=fld('sw_url','Swagger / OpenAPI URL','https://api.com/swagger.json','optional');
     if(has(srcs,'db_schema'))h+=fld('db_url','DB connection (read-only)','postgresql://readonly:***@host/db','optional');
     if(has(srcs,'manual_modules'))h+=fld('mods','Module names (comma-separated)','Chat UI, AI Router, Cart, Payment, Allergy Safety');
@@ -342,7 +342,7 @@ function buildSummary(){
 function collectStep(s){
   // Collect inputs from whatever step is currently displayed
   var ids={
-    3:['app_url','appname','desc','change','gh_url','jira_key','mods'],
+    3:['app_url','appname','desc','change','gh_url','jira_key','jira_issue','mods'],
     5:['a_jira_url','a_jira_email','a_jira_token','a_gh_repo','a_gh_token','a_gh_base','a_gh_head',
        'a_api_url','a_api_token','a_swagger','a_staging','a_notes']
   };
