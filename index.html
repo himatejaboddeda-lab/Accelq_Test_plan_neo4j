@@ -455,6 +455,52 @@ function renderResults(p){
   var R=document.getElementById('results');R.style.display='block';
   document.getElementById('hdr-sub').textContent='Test plan generated';
 
+  // PERMISSION REQUIRED — public URL app + Jira update without credentials
+  if(p&&p.permissionRequired){
+    document.getElementById('hdr-sub').textContent='Access credentials required';
+    var pl='<div style="background:var(--surface);border:2px solid var(--warn);border-radius:12px;padding:24px;max-width:700px;margin:0 auto">';
+    pl+='<div style="font-size:18px;font-weight:700;color:var(--warn);margin-bottom:10px">&#128274; Access Required to Continue</div>';
+    pl+='<div style="font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.7">'+esc(p.summary)+'</div>';
+
+    // Existing graph
+    if(p.existingGraphSummary&&p.existingGraphSummary.modulesInNeo4j&&p.existingGraphSummary.modulesInNeo4j.length){
+      pl+='<div style="margin-bottom:14px;padding:10px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:8px">';
+      pl+='<div style="font-size:11px;font-weight:700;color:var(--neo4j);margin-bottom:6px">EXISTING NEO4J GRAPH (read-only)</div>';
+      p.existingGraphSummary.modulesInNeo4j.forEach(function(m){
+        pl+='<span style="display:inline-block;padding:2px 10px;background:var(--neo4j-dim);border:1px solid var(--neo4j);border-radius:10px;font-size:11px;color:var(--neo4j);margin:2px">'+esc(m)+'</span>';
+      });
+      pl+='<div style="font-size:10px;color:var(--muted);margin-top:6px">Source: '+esc(p.existingGraphSummary.source||'public URL')+'</div>';
+      pl+='</div>';
+    }
+
+    // Pending Jira tickets
+    if(p.jiraStoriesPending&&p.jiraStoriesPending.length){
+      pl+='<div style="margin-bottom:14px">';
+      pl+='<div style="font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Jira tickets pending (cannot process without access)</div>';
+      p.jiraStoriesPending.forEach(function(s){
+        pl+='<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:4px;font-size:12px">';
+        pl+='<strong style="color:var(--warn)">'+esc(s.key)+'</strong> — '+esc(s.summary);
+        pl+='</div>';
+      });
+      pl+='</div>';
+    }
+
+    // What is required
+    pl+='<div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">Provide ONE of the following to unlock:</div>';
+    (p.requiredToUnlock||[]).forEach(function(r,i){
+      pl+='<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:6px;margin-bottom:5px;font-size:12px;line-height:1.5">';
+      pl+='<span style="color:var(--ok);font-weight:700;margin-right:6px">'+(i+1)+'.</span>'+esc(r);
+      pl+='</div>';
+    });
+
+    pl+='<div style="margin-top:14px;padding:10px 14px;background:var(--ok-dim);border:1px solid var(--ok);border-radius:8px;font-size:11px;color:var(--ok);line-height:1.7">';
+    pl+='<strong>How to provide access:</strong> '+esc(p.howToProvide||'Go to Step 6 (Verify Access) and fill in credentials.')+'</div>';
+    pl+='<button onclick="resetAll()" style="margin-top:14px;padding:12px 22px;background:var(--warn);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">&#8592; Go back and add credentials</button>';
+    pl+='</div>';
+    R.innerHTML=pl;
+    return;
+  }
+
   // CLARIFICATION MODE — show questions, no test plan
   if(p&&p.clarificationNeeded){
     document.getElementById('hdr-sub').textContent='Clarification required';
