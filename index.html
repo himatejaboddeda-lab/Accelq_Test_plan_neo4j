@@ -822,9 +822,16 @@ function renderResults(p){
   h+='<div class="rcard"><div class="rbody"><div class="sec-title">Export</div><div class="dl-row"><button class="dl-btn dl-pdf" onclick="window.print()">🖨 Print / Save as PDF</button><button class="dl-btn dl-json" onclick="dlJSON()">{ } JSON</button><button class="dl-btn dl-html" onclick="dlHTML()">📄 HTML report</button><button class="dl-btn dl-new" onclick="resetAll()">+ New plan</button></div></div></div>';
 
   // ── RESTAURANT IMPLEMENTATION CARD ─────────────────────────────────────────
-  // Additive only — shown when plan carries a planId + entityType=Restaurant.
-  // Does NOT modify Application/public URL logic above.
-  if(p&&p.planId&&p.entityType==='Restaurant'&&(p.operation==='ADD_DISH'||(p.menuItems&&p.menuItems.length))){
+  // Additive only — shown when plan carries a planId + is a Restaurant owned plan.
+  // entityType is now set at top level on plan (fixed). Also falls back to
+  // appClassification for plans generated before the fix.
+  var isRestaurantPlan = p && p.planId && (
+    p.entityType === 'Restaurant' ||
+    (p.appClassification && p.appClassification.ownershipStatus === 'OWNED_BY_USER' &&
+     p.jiraSummary && p.jiraSummary.stories && p.jiraSummary.stories.length > 0 &&
+     (p.planSaved === true))
+  );
+  if(isRestaurantPlan){
     h+='<div id="impl-card" class="rcard"><div class="rbody">';
     h+='<div class="sec-title">🍽️ Neo4j Implementation</div>';
     h+='<div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.7">';
