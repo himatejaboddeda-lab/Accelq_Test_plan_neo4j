@@ -821,12 +821,199 @@ function renderResults(p){
   // downloads
   h+='<div class="rcard"><div class="rbody"><div class="sec-title">Export</div><div class="dl-row"><button class="dl-btn dl-pdf" onclick="window.print()">🖨 Print / Save as PDF</button><button class="dl-btn dl-json" onclick="dlJSON()">{ } JSON</button><button class="dl-btn dl-html" onclick="dlHTML()">📄 HTML report</button><button class="dl-btn dl-new" onclick="resetAll()">+ New plan</button></div></div></div>';
 
+  // ── RESTAURANT IMPLEMENTATION CARD ─────────────────────────────────────────
+  // Additive only — shown when plan carries a planId + entityType=Restaurant.
+  // Does NOT modify Application/public URL logic above.
+  if(p&&p.planId&&p.entityType==='Restaurant'&&(p.operation==='ADD_DISH'||(p.menuItems&&p.menuItems.length))){
+    h+='<div id="impl-card" class="rcard"><div class="rbody">';
+    h+='<div class="sec-title">🍽️ Neo4j Implementation</div>';
+    h+='<div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.7">';
+    h+='Test plan generated and saved as <strong style="color:var(--ok);font-family:monospace">'+esc(p.planId)+'</strong>.<br>';
+    h+='Review the Cypher preview before writing anything to Neo4j. No write happens until you click Approve.';
+    h+='</div>';
+    // Menu items summary
+    if((p.menuItems||[]).length){
+      h+='<div style="margin-bottom:14px">';
+      (p.menuItems||[]).forEach(function(mi){
+        h+='<div style="padding:8px 12px;background:var(--surface2);border:1px solid var(--ok);border-radius:8px;margin-bottom:6px;font-size:12px">';
+        h+='<strong style="color:var(--ok)">'+esc(mi.dish||mi.name||'')+'</strong>';
+        h+=' → <span style="color:var(--text)">'+esc(mi.category||'')+'</span>';
+        if((mi.allergens||[]).length) h+=' · <span style="color:var(--muted)">allergens: '+esc(mi.allergens.join(', '))+'</span>';
+        h+='</div>';
+      });
+      h+='</div>';
+    }
+    // Preview button
+    h+='<div id="impl-preview-area">';
+    h+='<button onclick="previewImpl()" style="width:100%;padding:13px;background:var(--neo4j);color:#fff;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer" id="previewBtn">🔍 Preview Neo4j Implementation</button>';
+    h+='</div>';
+    h+='<div id="impl-result" style="margin-top:14px"></div>';
+    h+='</div></div>';
+  }
+  // ── END RESTAURANT IMPLEMENTATION CARD ─────────────────────────────────────
+
   R.innerHTML=h;
   window.scrollTo({top:0,behavior:'smooth'});
 }
 
 function dlJSON(){if(!finalPlan)return;var b=new Blob([JSON.stringify(finalPlan,null,2)],{type:'application/json'});var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='test-plan.json';a.click();URL.revokeObjectURL(u);}
 function dlHTML(){if(!finalPlan)return;var html='<html><head><meta charset="utf-8"><title>Test Plan</title><style>body{font-family:Arial;margin:30px;color:#1a2230}h1{font-size:22px}h2{font-size:16px;margin-top:20px;border-bottom:1px solid #ccc;padding-bottom:4px}table{border-collapse:collapse;width:100%;font-size:12px;margin-top:8px}td,th{border:1px solid #ccc;padding:6px;text-align:left}.warn{background:#fbeae8;border:1px solid #c0392b;padding:12px;border-radius:6px;margin:12px 0}</style></head><body>';html+='<h1>'+esc(finalPlan.title||'Test Plan')+'</h1><p>Confidence: '+Math.round((finalPlan.confidence>1?finalPlan.confidence/100:finalPlan.confidence)*100)+'% · '+esc(finalPlan.summary||'')+'</p>';var g2=finalPlan.gate2||{};html+='<div class="warn"><b>Gate 2:</b> '+esc(g2.warning||'')+'<br>'+(g2.requiredChecks||[]).map(function(c){return '• '+esc(c);}).join('<br>')+'</div>';html+='<h2>Test Cases</h2><table><tr><th>ID</th><th>Scenario</th><th>Risk</th><th>Mode</th><th>Module</th></tr>';(finalPlan.testCases||[]).forEach(function(t){html+='<tr><td>'+esc(t.id)+'</td><td>'+esc(t.scenario)+'</td><td>'+esc(t.risk)+'</td><td>'+esc(t.mode)+'</td><td>'+esc(t.module||'')+'</td></tr>';});html+='</table><h2>Release Gates</h2><ul>'+(finalPlan.releaseGates||[]).map(function(g){return '<li>'+esc(g)+'</li>';}).join('')+'</ul></body></html>';var b=new Blob([html],{type:'text/html'});var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='test-plan-report.html';a.click();URL.revokeObjectURL(u);}
+// ── RESTAURANT IMPLEMENTATION FUNCTIONS ──────────────────────────────────────
+// Additive only — not connected to Application/public URL flow.
+// All three require a planId on finalPlan (set when worker saves to PLAN_STORE).
+
+function implSetBtn(id,html,disabled){var b=document.getElementById(id);if(b){b.innerHTML=html;b.disabled=!!disabled;}}
+function implRes(html){var d=document.getElementById('impl-result');if(d)d.innerHTML=html;}
+
+async function previewImpl(){
+  if(!finalPlan||!finalPlan.planId){implRes('<div style="color:var(--danger);font-size:12px">No plan ID found — regenerate the test plan.</div>');return;}
+  implSetBtn('previewBtn','<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(255,255,255,.3);border-top-color:#fff;border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:6px"></span>Validating + building preview…',true);
+  implRes('');
+  try{
+    var r=await fetch(WORKER_URL+'/preview-implementation',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({planId:finalPlan.planId,jiraKey:finalPlan.jiraKey||finalPlan.jiraProjectKey,mode:'preview'})
+    });
+    var d=await r.json();
+    if(!r.ok||d.error){implRes('<div style="background:var(--danger-dim);border:1px solid var(--danger);border-radius:8px;padding:14px;font-size:12px;color:var(--danger)">⚠ Preview failed: '+esc(d.error||('HTTP '+r.status))+'</div>');implSetBtn('previewBtn','🔍 Preview Neo4j Implementation',false);return;}
+
+    var pr=d.preview||d;
+    var ok=pr.validationPassed!==false;
+    var out='<div style="background:var(--surface2);border:1px solid '+(ok?'var(--ok)':'var(--danger)')+';border-radius:10px;padding:18px">';
+    out+='<div style="font-size:13px;font-weight:700;color:'+(ok?'var(--ok)':'var(--danger)')+'">'+( ok?'✅ Validation passed — safe to apply':'❌ Validation failed — cannot apply')+'</div>';
+
+    if((pr.blockedReasons||[]).length){
+      out+='<div style="margin-top:10px;font-size:12px;color:var(--danger)">';
+      pr.blockedReasons.forEach(function(b){out+='• '+esc(b)+'<br>';});out+='</div>';}
+
+    if((pr.willCreate||[]).length){
+      out+='<div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Will create</div>';
+      pr.willCreate.forEach(function(n){out+='<div style="font-size:12px;padding:4px 0;color:var(--ok)">+ '+esc(n)+'</div>';});}
+
+    if((pr.willConnect||[]).length){
+      out+='<div style="margin-top:10px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Will connect</div>';
+      pr.willConnect.forEach(function(n){out+='<div style="font-size:12px;padding:4px 0;color:var(--neo4j)">→ '+esc(n)+'</div>';});}
+
+    if((pr.willNotTouch||[]).length){
+      out+='<div style="margin-top:10px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Will NOT touch</div>';
+      pr.willNotTouch.forEach(function(n){out+='<div style="font-size:12px;padding:4px 0;color:var(--muted)">⊘ '+esc(n)+'</div>';});}
+
+    if(pr.cypherPreview){
+      out+='<div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Cypher preview (read-only)</div>';
+      out+='<pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:10px;color:var(--text);overflow-x:auto;white-space:pre-wrap;margin-top:6px">'+esc(pr.cypherPreview)+'</pre>';}
+
+    if(pr.verificationQuery){
+      out+='<div style="margin-top:10px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Verification query (runs after apply)</div>';
+      out+='<pre style="background:var(--surface);border:1px solid var(--border);border-radius:6px;padding:12px;font-size:10px;color:var(--muted);overflow-x:auto;white-space:pre-wrap;margin-top:6px">'+esc(pr.verificationQuery)+'</pre>';}
+
+    out+='</div>';
+    if(ok){
+      out+='<div style="display:flex;gap:10px;margin-top:12px">';
+      out+='<button id="applyBtn" onclick="applyImpl()" style="flex:1;padding:13px;background:var(--ok);color:#04130c;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✅ Approve &amp; Apply to Neo4j</button>';
+      out+='<button onclick="cancelImpl()" style="padding:13px 20px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">✗ Cancel</button>';
+      out+='</div>';
+    } else {
+      out+='<button onclick="previewImpl()" style="margin-top:12px;padding:12px 20px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">↺ Re-check</button>';
+    }
+    implRes(out);
+    document.getElementById('impl-preview-area').style.display='none';
+  }catch(e){
+    implRes('<div style="background:var(--danger-dim);border:1px solid var(--danger);border-radius:8px;padding:14px;font-size:12px;color:var(--danger)">Network error: '+esc(e.message)+'</div>');
+    implSetBtn('previewBtn','🔍 Preview Neo4j Implementation',false);
+  }
+}
+
+async function applyImpl(){
+  if(!finalPlan||!finalPlan.planId)return;
+  var btn=document.getElementById('applyBtn');
+  if(btn){btn.disabled=true;btn.innerHTML='<span style="display:inline-block;width:12px;height:12px;border:2px solid rgba(0,0,0,.3);border-top-color:#04130c;border-radius:50%;animation:sp .8s linear infinite;vertical-align:middle;margin-right:6px"></span>Re-validating + applying…';}
+  try{
+    var r=await fetch(WORKER_URL+'/apply-implementation',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({planId:finalPlan.planId,jiraKey:finalPlan.jiraKey||finalPlan.jiraProjectKey,mode:'apply'})
+    });
+    var d=await r.json();
+    if(!r.ok||d.error){
+      if(btn){btn.disabled=false;btn.innerHTML='✅ Approve &amp; Apply to Neo4j';}
+      implRes(document.getElementById('impl-result').innerHTML+'<div style="margin-top:12px;background:var(--danger-dim);border:1px solid var(--danger);border-radius:8px;padding:14px;font-size:12px;color:var(--danger)">⚠ Apply failed: '+esc(d.error||('HTTP '+r.status))+'</div>');
+      return;}
+
+    var ap=d.apply||d;
+    var out='<div style="background:var(--ok-dim);border:1px solid var(--ok);border-radius:10px;padding:18px;margin-top:12px">';
+    out+='<div style="font-size:14px;font-weight:700;color:var(--ok)">✅ Applied &amp; Verified</div>';
+    out+='<div style="font-size:12px;color:var(--muted);margin-top:6px">Plan ID: <code>'+esc(finalPlan.planId)+'</code> · Status: <strong style="color:var(--ok)">'+(ap.status||'APPLIED_VERIFIED')+'</strong></div>';
+
+    if((ap.dishesVerified||[]).length){
+      out+='<div style="margin-top:12px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Dishes verified in Neo4j</div>';
+      ap.dishesVerified.forEach(function(dv){
+        var pass=dv.verified!==false;
+        out+='<div style="font-size:12px;padding:5px 0;color:'+(pass?'var(--ok)':'var(--danger)')+'">'+(pass?'✓':'✗')+' '+esc(dv.dish||'')+' → '+esc(dv.category||'')+'</div>';
+        if(dv.allergens) out+='<div style="font-size:11px;color:var(--muted);padding-left:16px">allergens: '+esc(dv.allergens.join?dv.allergens.join(', '):dv.allergens)+'</div>';
+      });}
+
+    if((ap.relationshipsVerified||[]).length){
+      out+='<div style="margin-top:10px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.05em">Relationships verified</div>';
+      ap.relationshipsVerified.forEach(function(rv){
+        var pass=rv.verified!==false;
+        out+='<div style="font-size:12px;padding:4px 0;color:'+(pass?'var(--ok)':'var(--danger)')+'">'+(pass?'✓':'✗')+' '+esc(rv.label||rv.description||'')+'</div>';
+      });}
+
+    if(ap.allergenCount!=null){
+      var acOk=ap.allergenCount===12;
+      out+='<div style="font-size:12px;padding:4px 0;color:'+(acOk?'var(--ok)':'var(--danger)') +'">'+(acOk?'✓':'✗')+' Allergen node count: '+esc(String(ap.allergenCount))+' (must remain 12)</div>';}
+
+    if(ap.jiraComment){
+      out+='<div style="margin-top:12px;padding:10px 12px;background:var(--jira-dim);border:1px solid var(--jira);border-radius:8px;font-size:12px">';
+      out+='📌 Jira comment posted';
+      if(ap.jiraCommentUrl) out+=' · <a href="'+esc(ap.jiraCommentUrl)+'" target="_blank" style="color:#4A9DFF;font-weight:700">View in Jira →</a>';
+      out+='</div>';}
+
+    if(ap.appliedAt) out+='<div style="font-size:11px;color:var(--muted);margin-top:8px">Applied at: '+esc(ap.appliedAt)+'</div>';
+
+    out+='</div>';
+    out+='<button onclick="verifyImpl()" style="margin-top:12px;padding:11px 20px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:12px;font-weight:700;cursor:pointer">🔄 Verify Again</button>';
+    implRes(out);
+  }catch(e){
+    if(btn){btn.disabled=false;btn.innerHTML='✅ Approve &amp; Apply to Neo4j';}
+    implRes(document.getElementById('impl-result').innerHTML+'<div style="margin-top:12px;background:var(--danger-dim);border:1px solid var(--danger);border-radius:8px;padding:14px;font-size:12px;color:var(--danger)">Network error: '+esc(e.message)+'</div>');
+  }
+}
+
+async function verifyImpl(){
+  if(!finalPlan||!finalPlan.planId)return;
+  implRes('<div style="font-size:12px;color:var(--muted);padding:10px 0">Verifying Neo4j…</div>');
+  try{
+    var r=await fetch(WORKER_URL+'/verify-implementation',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({planId:finalPlan.planId,jiraKey:finalPlan.jiraKey||finalPlan.jiraProjectKey})
+    });
+    var d=await r.json();
+    if(!r.ok||d.error){implRes('<div style="background:var(--danger-dim);border:1px solid var(--danger);border-radius:8px;padding:14px;font-size:12px;color:var(--danger)">Verify failed: '+esc(d.error||'')+'</div>');return;}
+    var vr=d.verification||d;
+    var allPass=(vr.testCases||[]).every(function(t){return t.passed!==false;});
+    var out='<div style="background:'+(allPass?'var(--ok-dim)':'var(--warn-dim)')+';border:1px solid '+(allPass?'var(--ok)':'var(--warn)')+';border-radius:10px;padding:16px;margin-top:12px">';
+    out+='<div style="font-size:13px;font-weight:700;color:'+(allPass?'var(--ok)':'var(--warn)')+'">'+( allPass?'✅ All verification checks passed':'⚠ Some checks failed')+'</div>';
+    (vr.testCases||[]).forEach(function(tc){
+      var pass=tc.passed!==false;
+      out+='<div style="font-size:12px;padding:5px 0;color:'+(pass?'var(--ok)':'var(--danger)')+'">'+(pass?'✓':'✗')+' '+esc(tc.description||tc.check||'')+'</div>';
+      if(!pass&&tc.detail) out+='<div style="font-size:11px;color:var(--muted);padding-left:16px">'+esc(tc.detail)+'</div>';
+    });
+    if(vr.verifiedAt) out+='<div style="font-size:11px;color:var(--muted);margin-top:8px">Verified at: '+esc(vr.verifiedAt)+'</div>';
+    out+='</div>';
+    out+='<button onclick="verifyImpl()" style="margin-top:10px;padding:9px 18px;background:var(--surface2);color:var(--text);border:1px solid var(--border);border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">🔄 Verify Again</button>';
+    implRes(out);
+  }catch(e){
+    implRes('<div style="background:var(--danger-dim);border:1px solid var(--danger);border-radius:8px;padding:14px;font-size:12px;color:var(--danger)">Network error: '+esc(e.message)+'</div>');
+  }
+}
+
+function cancelImpl(){
+  document.getElementById('impl-result').innerHTML='';
+  var pa=document.getElementById('impl-preview-area');if(pa)pa.style.display='block';
+  var pb=document.getElementById('previewBtn');if(pb){pb.disabled=false;pb.innerHTML='🔍 Preview Neo4j Implementation';}
+}
+// ── END RESTAURANT IMPLEMENTATION FUNCTIONS ────────────────────────────────
+
 function approveExisting(){generate({approveExistingNodes:true});}
 function setOwned(v){flds.owned=v;render();}
 function resetAll(){cur=0;atype=null;srcs=[];tests=[];flds={};finalPlan=null;lastIntake=null;document.getElementById('results').style.display='none';document.getElementById('results').innerHTML='';document.getElementById('wizard').style.display='block';document.getElementById('intro').style.display='block';document.getElementById('hdr-sub').textContent='Tell us about your app → backend builds the graph → generates the plan';render();window.scrollTo({top:0,behavior:'smooth'});}
