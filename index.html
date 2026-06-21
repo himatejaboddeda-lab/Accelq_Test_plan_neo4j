@@ -600,15 +600,40 @@ function renderResults(p){
   (p.sourcesUsed||[]).forEach(function(s){var cls=/neo4j/i.test(s)?'sp-neo4j':/pine/i.test(s)?'sp-pine':'sp-claude';h+='<div class="src-pill '+cls+'">'+esc(s)+'</div>';});
   h+='</div><div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.6">'+esc(p.summary||'')+'</div>';
   h+='<div style="font-size:11px;color:var(--muted);margin-top:8px">Neo4j: '+(p.neo4jSummary?p.neo4jSummary.nodesCreatedOrMerged:0)+' nodes / '+(p.neo4jSummary?p.neo4jSummary.relationshipsCreatedOrMerged:0)+' rels merged · Pinecone: '+(p.pineconeSummary?p.pineconeSummary.matchesReturned:0)+' matches</div>';
-  // Ownership / access classification badge
-  if(p.appClassification){
-    var ac=p.appClassification;var owned=ac.ownershipStatus==='OWNED_BY_USER';
-    h+='<div style="margin-top:10px;padding:8px 12px;border-radius:8px;font-size:11px;line-height:1.6;border:1px solid '+(owned?'var(--ok)':'var(--warn)')+';background:'+(owned?'var(--ok-dim)':'var(--surface2)')+';color:'+(owned?'var(--ok)':'var(--warn)')+'">';
-    h+='<strong>'+esc(ac.badge||'')+'</strong><br>';
-    h+='Ownership: '+esc(ac.ownershipStatus||'')+' · Access: '+esc(ac.accessLevel||'')+' · Can validate upgrade: '+(ac.canValidateUpgrade?'yes':'no');
-    if(!ac.canValidateUpgrade){h+='<br>Confidence capped at '+Math.round((ac.confidenceCeiling||0.65)*100)+'% — public content cannot prove backend behavior.';}
-    h+='</div>';
+
+  // ── SINGLE AUTHORITATIVE ACCESS BADGE ─────────────────────────────────────
+  // Uses plan.accessDecision (the Worker's final decision).
+  // Falls back to plan.appClassification for plans generated before this fix.
+  // Never shows two conflicting badges.
+  var ad=p.accessDecision||null;
+  var finalLevel=ad?ad.finalAccessLevel:(p.appClassification?(p.appClassification.canValidateUpgrade?'OWNED_VERIFIED':'PUBLIC_URL_ONLY'):'DESCRIPTION_ONLY');
+  var badgeColor,badgeBg,badgeMsg;
+  if(finalLevel==='OWNED_VERIFIED'){
+    badgeColor='var(--ok)';badgeBg='var(--ok-dim)';
+    badgeMsg=ad?esc(ad.uiMessage):'✅ Owned project verified. Implementation allowed.';
+  } else if(finalLevel==='CLAIMED_OWNED_UNVERIFIED'){
+    badgeColor='var(--warn)';badgeBg='var(--surface2)';
+    badgeMsg='⚠️ Ownership claimed but not verified. Public/description-only testing allowed. Implementation and Neo4j writes are blocked until source/API/admin/GitHub access is verified.';
+  } else if(finalLevel==='BLOCKED_NEEDS_SOURCE_ACCESS'){
+    badgeColor='var(--danger)';badgeBg='var(--danger-dim)';
+    badgeMsg='🔒 Blocked — source access required. Provide GitHub, API, admin, or Neo4j-verified ownership to proceed.';
+  } else if(finalLevel==='PUBLIC_URL_ONLY'){
+    badgeColor='var(--muted)';badgeBg='var(--surface2)';
+    badgeMsg='🌐 Public URL only. Discovery and black-box tests allowed. Upgrades, implementation plans, and Neo4j writes are blocked.';
+  } else {
+    badgeColor='var(--muted)';badgeBg='var(--surface2)';
+    badgeMsg='📝 Description only — no verified access. Tests are grounded in provided text only.';
   }
+  h+='<div style="margin-top:10px;padding:9px 13px;border-radius:8px;font-size:11px;line-height:1.6;border:1px solid '+badgeColor+';background:'+badgeBg+';color:'+badgeColor+'">';
+  h+=badgeMsg;
+  if(ad&&ad.strongSignalCount!=null&&ad.strongSignalCount>0){
+    h+='<span style="color:var(--muted)"> · '+ad.strongSignalCount+' verified signal'+(ad.strongSignalCount>1?'s':'')+'</span>';
+  }
+  if(ad&&ad.confidenceCap!=null){
+    h+='<span style="color:var(--muted)"> · Confidence capped at '+ad.confidenceCap+'%</span>';
+  }
+  h+='</div>';
+  // ── END SINGLE AUTHORITATIVE ACCESS BADGE ─────────────────────────────────
   // GitHub diff summary
   if(p.githubDiffSummary&&p.githubDiffSummary.ok){
     var gd=p.githubDiffSummary;
@@ -822,14 +847,17 @@ function renderResults(p){
   h+='<div class="rcard"><div class="rbody"><div class="sec-title">Export</div><div class="dl-row"><button class="dl-btn dl-pdf" onclick="window.print()">🖨 Print / Save as PDF</button><button class="dl-btn dl-json" onclick="dlJSON()">{ } JSON</button><button class="dl-btn dl-html" onclick="dlHTML()">📄 HTML report</button><button class="dl-btn dl-new" onclick="resetAll()">+ New plan</button></div></div></div>';
 
   // ── RESTAURANT IMPLEMENTATION CARD ─────────────────────────────────────────
-  // Additive only — shown when plan carries a planId + is a Restaurant owned plan.
-  // entityType is now set at top level on plan (fixed). Also falls back to
-  // appClassification for plans generated before the fix.
+  // Only shown when the Worker's accessDecision confirms implementationAllowed.
+  // A "I own it" toggle alone does NOT unlock this — needs OWNED_VERIFIED.
   var isRestaurantPlan = p && p.planId && (
+    (p.accessDecision && p.accessDecision.implementationAllowed === true) ||
+    // Fallback for plans generated before accessDecision was added
+    (p.planSaved === true &&
+     p.appClassification && p.appClassification.canValidateUpgrade === true)
+  ) && (
     p.entityType === 'Restaurant' ||
     (p.appClassification && p.appClassification.ownershipStatus === 'OWNED_BY_USER' &&
-     p.jiraSummary && p.jiraSummary.stories && p.jiraSummary.stories.length > 0 &&
-     (p.planSaved === true))
+     p.jiraSummary && p.jiraSummary.stories && p.jiraSummary.stories.length > 0)
   );
   if(isRestaurantPlan){
     h+='<div id="impl-card" class="rcard"><div class="rbody">';
