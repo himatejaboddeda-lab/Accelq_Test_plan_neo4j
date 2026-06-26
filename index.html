@@ -941,19 +941,21 @@ function renderResults(p){
   // downloads
   h+='<div class="rcard"><div class="rbody"><div class="sec-title">Export</div><div class="dl-row"><button class="dl-btn dl-pdf" onclick="window.print()">🖨 Print / Save as PDF</button><button class="dl-btn dl-json" onclick="dlJSON()">{ } JSON</button><button class="dl-btn dl-html" onclick="dlHTML()">📄 HTML report</button><button class="dl-btn dl-new" onclick="resetAll()">+ New plan</button></div></div></div>';
 
-  // ── RESTAURANT IMPLEMENTATION CARD ─────────────────────────────────────────
-  // Only shown when the Worker's accessDecision confirms implementationAllowed.
-  // A "I own it" toggle alone does NOT unlock this — needs OWNED_VERIFIED.
-  var isRestaurantPlan = p && p.planId && (
-    (p.accessDecision && p.accessDecision.implementationAllowed === true) ||
-    // Fallback for plans generated before accessDecision was added
-    (p.planSaved === true &&
-     p.appClassification && p.appClassification.canValidateUpgrade === true)
-  ) && (
-    p.entityType === 'Restaurant' ||
-    (p.appClassification && p.appClassification.ownershipStatus === 'OWNED_BY_USER' &&
-     p.jiraSummary && p.jiraSummary.stories && p.jiraSummary.stories.length > 0)
-  );
+  // ── NEO4J IMPLEMENTATION CARD ────────────────────────────────────────────
+  // Shown whenever: plan has a planId AND the project is owned (Neo4j OWNED_BY_USER).
+  // Writing to YOUR Neo4j is always allowed for owned projects.
+  // This is the core loop: generate plan → preview Cypher → approve → apply → verify.
+  var isRestaurantPlan = !!(p && p.planId && (
+    // Primary: accessDecision confirms ownership
+    (p.accessDecision && (p.accessDecision.implementationAllowed === true ||
+     p.accessDecision.neo4jOwnershipStatus === 'OWNED_BY_USER' ||
+     p.accessDecision.isOwnedVerified === true)) ||
+    // Secondary: appClassification confirms ownership
+    (p.appClassification && (p.appClassification.ownershipStatus === 'OWNED_BY_USER' ||
+     p.appClassification.canValidateUpgrade === true)) ||
+    // Tertiary: plan was explicitly saved to PLAN_STORE (worker set planSaved)
+    p.planSaved === true
+  ));
   if(isRestaurantPlan){
     h+='<div id="impl-card" class="rcard"><div class="rbody">';
     h+='<div class="sec-title">🍽️ Neo4j Implementation</div>';
