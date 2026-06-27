@@ -941,6 +941,48 @@ function renderResults(p){
   // downloads
   h+='<div class="rcard"><div class="rbody"><div class="sec-title">Export</div><div class="dl-row"><button class="dl-btn dl-pdf" onclick="window.print()">🖨 Print / Save as PDF</button><button class="dl-btn dl-json" onclick="dlJSON()">{ } JSON</button><button class="dl-btn dl-html" onclick="dlHTML()">📄 HTML report</button><button class="dl-btn dl-new" onclick="resetAll()">+ New plan</button></div></div></div>';
 
+  // ── FEEDBACK LOOP — Outcome Recording Panel ───────────────────────────────
+  // Tester marks each test case result after execution.
+  // Results flow back into Pinecone as experience memory for future plans.
+  if(p&&p.testCases&&p.testCases.length){
+    h+='<div class="rcard" id="outcome-panel"><div class="rbody">';
+    h+='<div class="sec-title">📊 Record Test Execution Outcomes</div>';
+    h+='<div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.7">';
+    h+='After executing the test plan, record each outcome here. Results are embedded into the AI system\'s experience memory — ';
+    h+='future plans for <strong>'+esc(p.title||'this app')+'</strong> will use this history to prioritize high-risk scenarios and deprioritize consistently passing tests.';
+    h+='</div>';
+    // Result buttons for each test case
+    h+='<div id="outcome-rows">';
+    p.testCases.forEach(function(tc){
+      var rid='outcome-'+tc.id;
+      h+='<div style="padding:10px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;margin-bottom:8px" id="row-'+esc(tc.id)+'">';
+      h+='<div style="display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap">';
+      h+='<div style="flex:1;min-width:180px"><div style="font-size:12px;font-weight:600;color:var(--text)">'+esc(tc.id)+' — '+esc((tc.scenario||'').slice(0,60))+'</div>';
+      h+='<div style="font-size:10px;color:var(--muted);margin-top:2px">'+esc(tc.module||'')+(tc.riskLevel||tc.risk?' · '+esc(tc.riskLevel||tc.risk):'')+'</div></div>';
+      // Result selector buttons
+      h+='<div style="display:flex;gap:6px;flex-wrap:wrap">';
+      [['✅','passed','var(--ok)'],['❌','failed','var(--danger)'],['⚠️','blocked','var(--warn)'],['🔄','skipped','var(--muted)']].forEach(function(btn){
+        h+='<button onclick="markOutcome(\''+esc(tc.id)+'\',\''+btn[1]+'\')" id="btn-'+esc(tc.id)+'-'+btn[1]+'" ';
+        h+='style="padding:5px 10px;border:1px solid '+btn[2]+';background:var(--surface);color:'+btn[2]+';border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s">'+btn[0]+' '+btn[1].charAt(0).toUpperCase()+btn[1].slice(1)+'</button>';
+      });
+      h+='</div></div>';
+      // Bug description (shown when Failed is selected)
+      h+='<div id="bug-'+esc(tc.id)+'" style="display:none;margin-top:8px">';
+      h+='<input placeholder="Describe the bug (optional)" id="bugdesc-'+esc(tc.id)+'" ';
+      h+='style="width:100%;padding:7px 10px;background:var(--surface);border:1px solid var(--danger);border-radius:6px;color:var(--text);font-size:11px;box-sizing:border-box">';
+      h+='</div></div>';
+    });
+    h+='</div>';
+    // Submit button
+    h+='<div style="margin-top:14px;display:flex;gap:10px;align-items:center;flex-wrap:wrap">';
+    h+='<button onclick="submitOutcomes()" style="padding:11px 22px;background:var(--ok);color:#04130c;border:none;border-radius:8px;font-size:13px;font-weight:700;cursor:pointer">📤 Submit Outcomes to AI Memory</button>';
+    h+='<div style="font-size:11px;color:var(--muted)">Mark at least one result before submitting.</div>';
+    h+='</div>';
+    h+='<div id="outcome-result" style="margin-top:12px"></div>';
+    h+='</div></div>';
+  }
+  // ── END FEEDBACK LOOP PANEL ───────────────────────────────────────────────
+
   // ── NEO4J IMPLEMENTATION CARD ────────────────────────────────────────────
   // Shown whenever: plan has a planId AND the project is owned (Neo4j OWNED_BY_USER).
   // Writing to YOUR Neo4j is always allowed for owned projects.
@@ -1148,6 +1190,93 @@ function cancelImpl(){
 
 function approveExisting(){generate({approveExistingNodes:true});}
 function setOwned(v){flds.owned=v;render();}
+
+// ── FEEDBACK LOOP — Outcome Recording ────────────────────────────────────────
+var _outcomes = {}; // { tcId: { result, riskLevel, module, scenario } }
+
+function markOutcome(tcId, result) {
+  // Store the selection
+  if (!finalPlan) return;
+  var tc = (finalPlan.testCases||[]).find(function(t){return t.id===tcId;});
+  _outcomes[tcId] = {
+    testCaseId:   tcId,
+    result:       result,
+    scenarioText: tc ? (tc.scenario||tc.id) : tcId,
+    module:       tc ? (tc.module||'') : '',
+    riskLevel:    tc ? (tc.riskLevel||tc.risk||'MEDIUM') : 'MEDIUM',
+    bugDescription: ''
+  };
+  // Update button styles — highlight selected, dim others
+  ['passed','failed','blocked','skipped'].forEach(function(r){
+    var btn=document.getElementById('btn-'+tcId+'-'+r);
+    if(!btn) return;
+    if(r===result){
+      btn.style.fontWeight='800';
+      btn.style.boxShadow='0 0 0 2px currentColor';
+    } else {
+      btn.style.fontWeight='600';
+      btn.style.boxShadow='none';
+      btn.style.opacity='0.5';
+    }
+  });
+  // Show bug description input only when Failed
+  var bugDiv=document.getElementById('bug-'+tcId);
+  if(bugDiv) bugDiv.style.display = result==='failed' ? 'block' : 'none';
+}
+
+async function submitOutcomes(){
+  var resEl=document.getElementById('outcome-result');
+  if(!finalPlan){if(resEl)resEl.innerHTML='<div style="color:var(--danger);font-size:12px">No plan loaded.</div>';return;}
+  if(!Object.keys(_outcomes).length){
+    if(resEl)resEl.innerHTML='<div style="color:var(--warn);font-size:12px">Mark at least one test case result before submitting.</div>';
+    return;
+  }
+  // Collect bug descriptions
+  Object.keys(_outcomes).forEach(function(tcId){
+    var inp=document.getElementById('bugdesc-'+tcId);
+    if(inp&&inp.value.trim()) _outcomes[tcId].bugDescription=inp.value.trim();
+  });
+  var outcomes=Object.values(_outcomes);
+  if(resEl) resEl.innerHTML='<div style="font-size:12px;color:var(--muted);padding:8px 0">Embedding '+outcomes.length+' outcome(s) into AI memory…</div>';
+  try{
+    var payload={
+      planId:   finalPlan.planId||null,
+      jiraKey:  finalPlan.jiraKey||finalPlan.jiraProjectKey||null,
+      appName:  finalPlan.requirementUnderstanding
+                  ? finalPlan.requirementUnderstanding.detectedApp
+                  : (finalPlan.title||'').replace('AI Test Plan — ',''),
+      outcomes: outcomes,
+      releaseVersion: finalPlan.releaseName||''
+    };
+    var r=await fetch(WORKER_URL+'/record-test-outcome',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(payload)
+    });
+    var d=await r.json();
+    if(!r.ok||d.error){
+      if(resEl)resEl.innerHTML='<div style="background:var(--surface2);border:1px solid var(--danger);border-radius:8px;padding:12px;font-size:12px;color:var(--danger)">⚠ Failed: '+esc(d.error||'HTTP '+r.status)+'</div>';
+      return;
+    }
+    var s=d.summary||{};
+    var passRate=outcomes.length>0?Math.round(((s.passed||0)/outcomes.length)*100):0;
+    var out='<div style="background:var(--ok-dim);border:1px solid var(--ok);border-radius:10px;padding:16px;margin-top:4px">';
+    out+='<div style="font-size:13px;font-weight:700;color:var(--ok)">✅ Outcomes recorded in AI memory</div>';
+    out+='<div style="font-size:12px;color:var(--muted);margin-top:6px;line-height:1.7">'+esc(d.message||'')+'</div>';
+    out+='<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:12px">';
+    [['✅ Passed',s.passed||0,'var(--ok)'],['❌ Failed',s.failed||0,'var(--danger)'],['⚠️ Blocked',s.blocked||0,'var(--warn)'],['🔄 Skipped',s.skipped||0,'var(--muted)']].forEach(function(c){
+      out+='<div style="background:var(--surface2);border-radius:8px;padding:8px;text-align:center"><div style="font-size:16px;font-weight:700;color:'+c[2]+'">'+c[1]+'</div><div style="font-size:10px;color:var(--muted)">'+esc(c[0])+'</div></div>';
+    });
+    out+='</div>';
+    if(s.bugsFound>0) out+='<div style="margin-top:10px;font-size:12px;color:var(--danger)">🐛 '+s.bugsFound+' bug(s) logged — these modules will be flagged HIGH risk in future plans.</div>';
+    if(d.jiraCommentPosted) out+='<div style="margin-top:8px;font-size:11px;color:var(--muted)">📌 Execution summary posted to Jira ticket.</div>';
+    out+='<div style="margin-top:8px;font-size:11px;color:var(--muted)">Pass rate: <strong>'+passRate+'%</strong> · Vectors stored: '+esc(String(d.outcomesSaved||0))+'/'+outcomes.length+'</div>';
+    out+='</div>';
+    if(resEl) resEl.innerHTML=out;
+  } catch(e){
+    if(resEl)resEl.innerHTML='<div style="background:var(--surface2);border:1px solid var(--danger);border-radius:8px;padding:12px;font-size:12px;color:var(--danger)">Network error: '+esc(e.message)+'</div>';
+  }
+}
+// ── END FEEDBACK LOOP ─────────────────────────────────────────────────────
 
 // ── POST-DEVELOPMENT COMPARISON ──────────────────────────────────────────────
 async function runComparison(){
