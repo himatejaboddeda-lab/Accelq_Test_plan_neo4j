@@ -1037,6 +1037,26 @@ function renderResults(p){
   // downloads
   h+='<div class="rcard"><div class="rbody"><div class="sec-title">Export</div><div class="dl-row"><button class="dl-btn dl-pdf" onclick="window.print()">🖨 Print / Save as PDF</button><button class="dl-btn dl-json" onclick="dlJSON()">{ } JSON</button><button class="dl-btn dl-html" onclick="dlHTML()">📄 HTML report</button><button class="dl-btn dl-new" onclick="resetAll()">+ New plan</button></div></div></div>';
 
+  // ── NEW APP NEO4J REGISTRATION PROMPT ─────────────────────────────────────
+  // When a new app (0 Neo4j nodes) has a URL, ask if user wants to register it.
+  if(p.newAppRegistrationSuggestion){
+    var nrs=p.newAppRegistrationSuggestion;
+    h+='<div class="rcard" style="border:1px solid #4f46e5"><div class="rbody">';
+    h+='<div class="sec-title" style="color:#a5b4fc">🗂️ Register in Neo4j Knowledge Graph?</div>';
+    h+='<div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.7">'+esc(nrs.message)+'</div>';
+    h+='<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px">';
+    (nrs.options||[]).forEach(function(opt){
+      var isOwned=opt.flag==='registerOwned';var isPub=opt.flag==='registerPublic';
+      var col=isOwned?'var(--ok)':isPub?'#4f46e5':'var(--muted)';
+      h+='<button onclick="registerAppNeo4j(\''+esc(opt.flag)+'\')" style="padding:9px 14px;border:1px solid '+col+';background:var(--surface2);color:'+col+';border-radius:8px;font-size:11px;font-weight:700;cursor:pointer">'+esc(opt.label)+'</button>';
+    });
+    h+='</div>';
+    if(nrs.note){h+='<div style="font-size:10px;color:var(--muted)">'+esc(nrs.note)+'</div>';}
+    h+='<div id="neo4j-reg-result" style="margin-top:10px"></div>';
+    h+='</div></div>';
+  }
+  // ── END NEO4J REGISTRATION PROMPT ─────────────────────────────────────────
+
   // ── EXECUTION INTELLIGENCE PANEL ─────────────────────────────────────────
   if(p&&p.testCases&&p.testCases.length){
     h+='<div class="rcard" id="outcome-panel"><div class="rbody">';
@@ -1280,6 +1300,39 @@ function cancelImpl(){
 
 function approveExisting(){generate({approveExistingNodes:true});}
 function setOwned(v){flds.owned=v;render();}
+
+// ── NEO4J APP REGISTRATION ────────────────────────────────────────────────
+async function registerAppNeo4j(flag){
+  var resEl=document.getElementById('neo4j-reg-result');
+  if(!finalPlan||flag==='skipRegistration'){
+    if(resEl) resEl.innerHTML='<div style="font-size:12px;color:var(--muted)">Skipped — app will remain as public URL only.</div>';
+    return;
+  }
+  if(resEl) resEl.innerHTML='<div style="font-size:12px;color:var(--muted)">Registering in Neo4j…</div>';
+  try{
+    var ownershipStatus=flag==='registerOwned'?'OWNED_BY_USER':'PUBLIC_URL_ONLY';
+    var r=await fetch(WORKER_URL+'/analyze',{
+      method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        appName:  finalPlan.appName||(finalPlan.title||'').replace('AI Test Plan — ',''),
+        appUrl:   finalPlan.appUrl||'',
+        registerInNeo4j: true,
+        ownershipStatus: ownershipStatus,
+        action: 'register'
+      })
+    });
+    var d=await r.json();
+    if(!r.ok||d.error){
+      if(resEl)resEl.innerHTML='<div style="color:var(--danger);font-size:12px">Registration failed: '+esc(d.error||'HTTP '+r.status)+'</div>';
+      return;
+    }
+    var col=ownershipStatus==='OWNED_BY_USER'?'var(--ok)':'#4f46e5';
+    if(resEl)resEl.innerHTML='<div style="padding:10px 12px;background:var(--surface2);border:1px solid '+col+';border-radius:8px;font-size:12px;color:'+col+'">✅ '+(finalPlan.appName||'App')+' registered in Neo4j as <strong>'+ownershipStatus+'</strong>.<br><span style="color:var(--muted);font-size:11px">Future test plans will use Neo4j graph grounding for this application.</span></div>';
+  }catch(e){
+    if(resEl)resEl.innerHTML='<div style="color:var(--danger);font-size:12px">Network error: '+esc(e.message)+'</div>';
+  }
+}
+// ── END NEO4J APP REGISTRATION ────────────────────────────────────────────
 
 // ── EXECUTION INTELLIGENCE ────────────────────────────────────────────────
 var _outcomes = {};
