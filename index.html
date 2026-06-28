@@ -1094,23 +1094,23 @@ function renderResults(p){
 
 
   // ── NEO4J IMPLEMENTATION CARD ────────────────────────────────────────────
-  // Shown whenever: plan has a planId AND the project is owned (Neo4j OWNED_BY_USER).
-  // Writing to YOUR Neo4j is always allowed for owned projects.
-  // This is the core loop: generate plan → preview Cypher → approve → apply → verify.
-  var isRestaurantPlan = !!(p && p.planId && (
-    // Primary: accessDecision confirms ownership
-    (p.accessDecision && (p.accessDecision.implementationAllowed === true ||
-     p.accessDecision.neo4jOwnershipStatus === 'OWNED_BY_USER' ||
-     p.accessDecision.isOwnedVerified === true)) ||
-    // Secondary: appClassification confirms ownership
-    (p.appClassification && (p.appClassification.ownershipStatus === 'OWNED_BY_USER' ||
-     p.appClassification.canValidateUpgrade === true)) ||
-    // Tertiary: plan was explicitly saved to PLAN_STORE (worker set planSaved)
-    p.planSaved === true
+  // Only shown for OWNED Restaurant or Application nodes with menu/data items.
+  // planSaved alone is NOT enough — WeLive is saved to KV (for Execution Intelligence)
+  // but it is NOT a restaurant and should NOT show the Cypher implementation card.
+  // Required: plan must carry entityType OR menuItems OR entityId from a known owned node.
+  var isOwnedNeo4jApp = !!(p && p.planId && (
+    (p.accessDecision && p.accessDecision.implementationAllowed === true &&
+     p.accessDecision.neo4jOwnershipStatus === 'OWNED_BY_USER') ||
+    (p.appClassification && p.appClassification.ownershipStatus === 'OWNED_BY_USER' &&
+     p.appClassification.canValidateUpgrade === true)
   ));
+  var hasMenuItems = !!(p && ((p.menuItems && p.menuItems.length > 0) ||
+                               p.entityType === 'Restaurant' ||
+                               (p.entityId && p.entityId.startsWith('rest_'))));
+  var isRestaurantPlan = !!(p && p.planId && isOwnedNeo4jApp && hasMenuItems);
   if(isRestaurantPlan){
     h+='<div id="impl-card" class="rcard"><div class="rbody">';
-    h+='<div class="sec-title">🍽️ Neo4j Implementation</div>';
+    h+='<div class="sec-title">'+(p.entityType==='Restaurant'?'🍽️':'🗂️')+' Neo4j Implementation</div>';
     h+='<div style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.7">';
     h+='Test plan generated and saved as <strong style="color:var(--ok);font-family:monospace">'+esc(p.planId)+'</strong>.<br>';
     h+='Review the Cypher preview before writing anything to Neo4j. No write happens until you click Approve.';
